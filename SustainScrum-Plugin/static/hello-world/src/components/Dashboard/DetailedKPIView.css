@@ -1,0 +1,234 @@
+.detailed-kpi-view {
+    padding: 24px;
+    background-color: #ffffff;
+    border-radius: 3px;
+}
+
+.kpi-view-header {
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #dfe1e6;
+}
+
+.kpi-view-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 8px 0;
+}
+
+.kpi-view-subtitle {
+    font-size: 14px;
+    color: #42526e;
+    margin: 0;
+}
+
+.kpi-dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.kpi-dimension-card {
+    padding: 20px;
+    background-color: #ffffff;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    transition: box-shadow 0.2s ease;
+}
+
+.kpi-dimension-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-dimension-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f4f5f7;
+}
+
+.kpi-dimension-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0;
+}
+
+.kpi-dimension-status {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 3px;
+    background-color: #f4f5f7;
+}
+
+.kpi-dimension-main-score {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.kpi-main-value {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+
+.kpi-main-label {
+    font-size: 14px;
+    color: #42526e;
+    font-weight: 500;
+}
+
+.kpi-progress-section {
+    margin-bottom: 20px;
+}
+
+.kpi-progress-bar-container {
+    width: 100%;
+    height: 12px;
+    background-color: #dfe1e6;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.kpi-progress-bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 6px;
+}
+
+.kpi-progress-label {
+    font-size: 12px;
+    color: #42526e;
+    text-align: center;
+}
+
+.kpi-trend-section {
+    display: flex;
+    justify-content: space-around;
+    padding: 16px;
+    background-color: #f4f5f7;
+    border-radius: 3px;
+    margin-bottom: 20px;
+}
+
+.kpi-trend-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.kpi-trend-label {
+    font-size: 12px;
+    color: #42526e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kpi-trend-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #172b4d;
+}
+
+.kpi-interpretation {
+    padding: 16px;
+    background-color: #f4f5f7;
+    border-radius: 3px;
+    margin-bottom: 16px;
+}
+
+.interpretation-header {
+    font-size: 12px;
+    font-weight: 600;
+    color: #172b4d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.interpretation-text {
+    font-size: 14px;
+    color: #42526e;
+    line-height: 1.6;
+}
+
+.kpi-thresholds {
+    display: flex;
+    justify-content: space-around;
+    padding-top: 16px;
+    border-top: 1px solid #dfe1e6;
+}
+
+.threshold-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.threshold-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.threshold-label {
+    font-size: 12px;
+    color: #42526e;
+}
+
+.kpi-summary-section {
+    padding: 24px;
+    background-color: #f4f5f7;
+    border-radius: 3px;
+    border: 1px solid #dfe1e6;
+}
+
+.summary-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 16px 0;
+}
+
+.summary-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 24px;
+}
+
+.summary-stat {
+    text-align: center;
+    padding: 16px;
+    background-color: #ffffff;
+    border-radius: 3px;
+    border: 1px solid #dfe1e6;
+}
+
+.summary-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #172b4d;
+    margin-bottom: 8px;
+}
+
+.summary-stat-label {
+    font-size: 12px;
+    color: #42526e;
+    font-weight: 500;
+}
+
+.info-text {
+    padding: 24px;
+    text-align: center;
+    color: #42526e;
+    font-size: 14px;
+}

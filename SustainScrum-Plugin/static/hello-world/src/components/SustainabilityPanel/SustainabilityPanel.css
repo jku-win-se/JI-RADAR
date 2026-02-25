@@ -1,0 +1,20 @@
+.sustainability-panel {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.loading-message {
+    padding: 24px;
+    text-align: center;
+    color: #42526e;
+    font-size: 14px;
+}
+
+.error-message {
+    padding: 12px;
+    background-color: #ffebe6;
+    border: 1px solid #de350b;
+    border-radius: 3px;
+    color: #de350b;
+    margin-bottom: 16px;
+    font-size: 14px;
+}

@@ -1,0 +1,107 @@
+.heatmap-container {
+    margin-top: 24px;
+}
+
+.heatmap-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 16px 0;
+}
+
+.heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.heatmap-table thead {
+    background-color: #f4f5f7;
+}
+
+.heatmap-table th {
+    padding: 12px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #172b4d;
+    border-bottom: 2px solid #dfe1e6;
+}
+
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sortable-header:hover {
+    background-color: #ebecf0;
+}
+
+.sort-indicator {
+    margin-left: 4px;
+    color: #0052cc;
+}
+
+.heatmap-table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid #f4f5f7;
+}
+
+.issue-key-cell {
+    font-weight: 500;
+    color: #172b4d;
+    text-align: left;
+}
+
+.score-cell {
+    text-align: center;
+}
+
+.score-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.score-dot:hover {
+    transform: scale(1.2);
+}
+
+.heatmap-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    padding: 12px;
+    background-color: #f4f5f7;
+    border-radius: 3px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #42526e;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.no-data-message {
+    padding: 24px;
+    text-align: center;
+    color: #42526e;
+    font-size: 14px;
+}

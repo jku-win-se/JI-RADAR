@@ -1,0 +1,90 @@
+.not-assessed-view {
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.panel-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 16px 0;
+}
+
+.issue-info {
+    margin-bottom: 16px;
+    padding: 12px;
+    background-color: #f4f5f7;
+    border-radius: 3px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.info-row:last-child {
+    margin-bottom: 0;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #42526e;
+}
+
+.info-value {
+    color: #172b4d;
+}
+
+.start-assessment-button {
+    width: 100%;
+    padding: 10px 20px;
+    background-color: #0052cc;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    margin-bottom: 16px;
+}
+
+.start-assessment-button:hover {
+    background-color: #0065ff;
+}
+
+.green-dod-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #dfe1e6;
+}
+
+.dod-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 8px 0;
+}
+
+.dod-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.dod-item {
+    font-size: 14px;
+    color: #42526e;
+    margin-bottom: 4px;
+    padding-left: 0;
+}
+
+.dod-item.checked {
+    color: #00875a;
+}
+
+.dod-item.unchecked {
+    color: #de350b;
+}

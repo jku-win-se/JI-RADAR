@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+coverage/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.log
+
+# Cursor / lokale Artefakte
+.cursor/
+terminals/
+
+# OS
+Thumbs.db
+.DS_Store
+
