@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getSuMM } from '../../services/summApi';
+import { searchIssues } from '../../services/issueApi';
 import './AssessmentWizard.css';
 
 /**
@@ -13,6 +14,16 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
+    // Nachhaltigkeitsbegründungsaufzeichnung (optional)
+    const [justification, setJustification] = useState({
+        compromises: '',
+        alternatives: '',
+        rationale: '',
+        linkedIssueKeys: []
+    });
+    const [justificationSearch, setJustificationSearch] = useState('');
+    const [justificationSearchResults, setJustificationSearchResults] = useState([]);
+    const [justificationSearching, setJustificationSearching] = useState(false);
     
     // Default dimensions (fallback if SuMM not loaded)
     const defaultDimensions = [
@@ -67,6 +78,15 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
             console.log('Loading existing answers for edit mode:', existingAssessment.answers);
             setAnswers(existingAssessment.answers);
         }
+        if (existingAssessment && existingAssessment.justification) {
+            setJustification({
+                compromises: existingAssessment.justification.compromises || '',
+                alternatives: existingAssessment.justification.alternatives || '',
+                rationale: existingAssessment.justification.rationale || '',
+                linkedIssueKeys: Array.isArray(existingAssessment.justification.linkedIssueKeys)
+                    ? existingAssessment.justification.linkedIssueKeys : []
+            });
+        }
     }, [issueKey, existingAssessment]);
 
     const loadSuMM = async (projectKey) => {
@@ -97,8 +117,10 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
     };
 
     const enabledDimensions = getEnabledDimensions();
-    const totalSteps = enabledDimensions.length;
-    const currentDimension = enabledDimensions[currentStep];
+    const dimensionStepCount = enabledDimensions.length;
+    const totalSteps = dimensionStepCount + 1; // +1 for Justification step
+    const isJustificationStep = currentStep === dimensionStepCount;
+    const currentDimension = !isJustificationStep ? enabledDimensions[currentStep] : null;
     const currentQuestions = dimensionQuestions[currentDimension?.id] || [];
 
     const handleAnswerChange = (questionIndex, value) => {
@@ -183,8 +205,16 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
             await onComplete({
                 summDimensionId,
                 susafScores,
-                answers: answers, // Store individual answers for edit mode
-                assessedBy: 'current-user' // In real implementation, get from context
+                answers: answers,
+                justification: (justification.compromises || justification.alternatives || justification.rationale || (justification.linkedIssueKeys && justification.linkedIssueKeys.length > 0))
+                    ? {
+                        compromises: justification.compromises || '',
+                        alternatives: justification.alternatives || '',
+                        rationale: justification.rationale || '',
+                        linkedIssueKeys: justification.linkedIssueKeys || []
+                    }
+                    : null,
+                assessedBy: 'current-user'
             });
             // Success - onComplete will handle closing the wizard
         } catch (error) {
@@ -222,6 +252,32 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
         });
     };
 
+    const runJustificationSearch = async () => {
+        const projectKey = issueKey?.split('-')[0];
+        if (!projectKey) return;
+        setJustificationSearching(true);
+        try {
+            const result = await searchIssues(projectKey, issueKey, justificationSearch, 15);
+            setJustificationSearchResults(result.issues || []);
+        } catch (e) {
+            setJustificationSearchResults([]);
+        } finally {
+            setJustificationSearching(false);
+        }
+    };
+
+    const addLinkedIssue = (key) => {
+        if (!justification.linkedIssueKeys.includes(key)) {
+            setJustification(prev => ({ ...prev, linkedIssueKeys: [...prev.linkedIssueKeys, key] }));
+        }
+        setJustificationSearchResults([]);
+        setJustificationSearch('');
+    };
+
+    const removeLinkedIssue = (key) => {
+        setJustification(prev => ({ ...prev, linkedIssueKeys: prev.linkedIssueKeys.filter(k => k !== key) }));
+    };
+
     const progressPercentage = ((currentStep + 1) / totalSteps) * 100;
 
     if (loading) {
@@ -232,7 +288,7 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
         );
     }
 
-    if (!currentDimension) {
+    if (!currentDimension && !isJustificationStep) {
         return (
             <div className="assessment-wizard">
                 <div className="error-message">No dimensions available for assessment</div>
@@ -271,57 +327,131 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                         style={{ width: `${progressPercentage}%` }}
                     />
                 </div>
-                <span className="progress-text">{currentStep + 1}/{totalSteps} Dimensions</span>
+                <span className="progress-text">{currentStep + 1}/{totalSteps} {isJustificationStep ? 'Justification' : 'Dimensions'}</span>
             </div>
 
             <div className="wizard-content">
-                <div className="dimension-section">
-                    <h3 className="dimension-title">Dimension {currentStep + 1}: {currentDimension.name}</h3>
-                    
-                    {currentQuestions.map((question, questionIndex) => {
-                        const currentValue = answers[currentDimension.id]?.[questionIndex];
-                        return (
-                            <div key={questionIndex} className="question-block">
-                                <p className="question-text">
-                                    Question {questionIndex + 1}: {question}
-                                </p>
-                                <div className="rating-group">
-                                    {[1, 2, 3, 4, 5].map(value => (
+                {isJustificationStep ? (
+                    <div className="justification-section">
+                        <h3 className="dimension-title">Nachhaltigkeitsbegründung (optional)</h3>
+                        <p className="justification-intro">Kompromisse, Alternativen und Begründungen erfassen. Verknüpfungen zu betroffenen Issues (User Stories / Nachhaltigkeitsgeschichten) herstellen.</p>
+                        <div className="justification-field">
+                            <label>Kompromisse</label>
+                            <textarea
+                                value={justification.compromises}
+                                onChange={e => setJustification(prev => ({ ...prev, compromises: e.target.value }))}
+                                placeholder="Erfasste Kompromisse…"
+                                rows={2}
+                                className="justification-textarea"
+                            />
+                        </div>
+                        <div className="justification-field">
+                            <label>In Betracht gezogene Alternativen</label>
+                            <textarea
+                                value={justification.alternatives}
+                                onChange={e => setJustification(prev => ({ ...prev, alternatives: e.target.value }))}
+                                placeholder="Alternativen…"
+                                rows={2}
+                                className="justification-textarea"
+                            />
+                        </div>
+                        <div className="justification-field">
+                            <label>Begründung</label>
+                            <textarea
+                                value={justification.rationale}
+                                onChange={e => setJustification(prev => ({ ...prev, rationale: e.target.value }))}
+                                placeholder="Begründung…"
+                                rows={2}
+                                className="justification-textarea"
+                            />
+                        </div>
+                        <div className="justification-field">
+                            <label>Verknüpfte Issues (Rückverfolgbarkeit)</label>
+                            <div className="justification-linked-search">
+                                <input
+                                    type="text"
+                                    placeholder="Key oder Summary suchen…"
+                                    value={justificationSearch}
+                                    onChange={e => setJustificationSearch(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), runJustificationSearch())}
+                                    className="justification-search-input"
+                                />
+                                <button type="button" onClick={runJustificationSearch} disabled={justificationSearching} className="justification-search-btn">
+                                    {justificationSearching ? '…' : 'Suchen'}
+                                </button>
+                            </div>
+                            {justificationSearchResults.length > 0 && (
+                                <ul className="justification-results">
+                                    {justificationSearchResults.map(issue => (
+                                        <li key={issue.key}>
+                                            <button type="button" onClick={() => addLinkedIssue(issue.key)} className="justification-add-link-btn">
+                                                + {issue.key}: {issue.summary.slice(0, 40)}{issue.summary.length > 40 ? '…' : ''}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {justification.linkedIssueKeys.length > 0 && (
+                                <ul className="justification-linked-list">
+                                    {justification.linkedIssueKeys.map(key => (
+                                        <li key={key}>
+                                            <a href={`${window.location.origin}/browse/${key}`} target="_blank" rel="noopener noreferrer">{key}</a>
+                                            <button type="button" onClick={() => removeLinkedIssue(key)} className="justification-remove-link">✕</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="dimension-section">
+                        <h3 className="dimension-title">Dimension {currentStep + 1}: {currentDimension.name}</h3>
+                        
+                        {currentQuestions.map((question, questionIndex) => {
+                            const currentValue = answers[currentDimension.id]?.[questionIndex];
+                            return (
+                                <div key={questionIndex} className="question-block">
+                                    <p className="question-text">
+                                        Question {questionIndex + 1}: {question}
+                                    </p>
+                                    <div className="rating-group">
+                                        {[1, 2, 3, 4, 5].map(value => (
+                                            <label 
+                                                key={value} 
+                                                className={`rating-option ${currentValue === value ? 'checked' : ''}`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name={`dimension-${currentDimension.id}-question-${questionIndex}`}
+                                                    value={value}
+                                                    checked={currentValue === value}
+                                                    onChange={(e) => handleAnswerChange(questionIndex, e.target.value)}
+                                                />
+                                                <span className="rating-value">{value}</span>
+                                            </label>
+                                        ))}
                                         <label 
-                                            key={value} 
-                                            className={`rating-option ${currentValue === value ? 'checked' : ''}`}
+                                            className={`rating-option indifferent-option ${currentValue === 0 ? 'checked' : ''}`}
                                         >
                                             <input
                                                 type="radio"
                                                 name={`dimension-${currentDimension.id}-question-${questionIndex}`}
-                                                value={value}
-                                                checked={currentValue === value}
+                                                value="0"
+                                                checked={currentValue === 0}
                                                 onChange={(e) => handleAnswerChange(questionIndex, e.target.value)}
                                             />
-                                            <span className="rating-value">{value}</span>
+                                            <span className="rating-value">Indifferent</span>
                                         </label>
-                                    ))}
-                                    <label 
-                                        className={`rating-option indifferent-option ${currentValue === 0 ? 'checked' : ''}`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name={`dimension-${currentDimension.id}-question-${questionIndex}`}
-                                            value="0"
-                                            checked={currentValue === 0}
-                                            onChange={(e) => handleAnswerChange(questionIndex, e.target.value)}
-                                        />
-                                        <span className="rating-value">Indifferent</span>
-                                    </label>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                    
-                    <div className="rating-legend">
-                        <strong>Legend:</strong> 1=Direct Neg, 2=Indirect Neg, 3=No Impact, 4=Indirect Pos, 5=Direct Pos, Indifferent=Not applicable / Cannot assess
+                            );
+                        })}
+                        
+                        <div className="rating-legend">
+                            <strong>Legend:</strong> 1=Direct Neg, 2=Indirect Neg, 3=No Impact, 4=Indirect Pos, 5=Direct Pos, Indifferent=Not applicable / Cannot assess
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             <div className="wizard-actions">
@@ -338,21 +468,21 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                     className="nav-button previous-button"
                     type="button"
                 >
-                    Previous Dimension
+                    {isJustificationStep ? 'Previous (Dimensions)' : 'Previous Dimension'}
                 </button>
                 {currentStep < totalSteps - 1 ? (
                     <button 
                         onClick={handleNext}
-                        disabled={!isCurrentStepComplete()}
+                        disabled={(!isJustificationStep && !isCurrentStepComplete()) || saving}
                         className="nav-button next-button"
                     >
-                        Next Dimension
+                        {currentStep === dimensionStepCount - 1 ? 'Next: Justification' : 'Next Dimension'}
                     </button>
                 ) : (
                     <>
                         <button 
                             onClick={handleSave}
-                            disabled={!isCurrentStepComplete() || saving || !areAllDimensionsComplete()}
+                            disabled={saving || !areAllDimensionsComplete()}
                             className="save-button"
                             type="button"
                         >

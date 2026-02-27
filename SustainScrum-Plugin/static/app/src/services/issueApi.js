@@ -51,7 +51,7 @@ export const getIssueAssessment = async (issueKey) => {
 /**
  * Save sustainability assessment for an issue
  * @param {string} issueKey - Jira issue key
- * @param {Object} assessmentData - Assessment data
+ * @param {Object} assessmentData - Assessment data (may include justification: { compromises, alternatives, rationale, linkedIssueKeys })
  * @returns {Promise<Object>} Save result
  */
 export const saveIssueAssessment = async (issueKey, assessmentData) => {
@@ -77,5 +77,60 @@ export const saveIssueAssessment = async (issueKey, assessmentData) => {
         } else {
             throw new Error(`Failed to save issue assessment: ${JSON.stringify(error)}`);
         }
+    }
+};
+
+/**
+ * Get issue links (traceability)
+ */
+export const getIssueLinks = async (issueKey) => {
+    try {
+        const result = await invoke('getIssueLinks', { issueKey });
+        return result;
+    } catch (error) {
+        console.error('Error getting issue links:', error);
+        throw error;
+    }
+};
+
+/**
+ * Create issue link (outward -> inward). linkTypeName defaults to "Relates".
+ */
+export const createIssueLink = async (outwardIssueKey, inwardIssueKey, linkTypeName = 'Relates') => {
+    try {
+        const result = await invoke('createIssueLink', { outwardIssueKey, inwardIssueKey, linkTypeName });
+        if (result && result.error) throw new Error(result.error);
+        return result;
+    } catch (error) {
+        console.error('Error creating issue link:', error);
+        throw error;
+    }
+};
+
+/**
+ * Delete issue link by id
+ */
+export const deleteIssueLink = async (linkId) => {
+    try {
+        const result = await invoke('deleteIssueLink', { linkId });
+        if (result && result.error) throw new Error(result.error);
+        return result;
+    } catch (error) {
+        console.error('Error deleting issue link:', error);
+        throw error;
+    }
+};
+
+/**
+ * Search issues in project (for link picker and justification)
+ */
+export const searchIssues = async (projectKey, currentIssueKey, query, maxResults = 50) => {
+    try {
+        const result = await invoke('searchIssues', { projectKey, currentIssueKey, query, maxResults });
+        if (result && result.error) throw new Error(result.error);
+        return result;
+    } catch (error) {
+        console.error('Error searching issues:', error);
+        throw error;
     }
 };

@@ -242,6 +242,7 @@ function SuMMConfig() {
                 setSuccessMessage('SuMM configuration saved successfully!');
                 setSummData(result.data);
                 setError(null);
+                setWarning(null); // Clear warning – config was saved, storage works
                 // Clear success message after 3 seconds
                 setTimeout(() => setSuccessMessage(null), 3000);
             }

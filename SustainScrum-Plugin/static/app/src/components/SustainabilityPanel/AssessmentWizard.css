@@ -256,3 +256,109 @@
     border-radius: 3px;
     margin-bottom: 16px;
 }
+
+/* Justification step */
+.justification-section {
+    padding: 0 0 16px 0;
+}
+.justification-intro {
+    font-size: 13px;
+    color: #5e6c84;
+    margin-bottom: 12px;
+}
+.justification-field {
+    margin-bottom: 12px;
+}
+.justification-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #172b4d;
+    margin-bottom: 4px;
+}
+.justification-textarea {
+    width: 100%;
+    padding: 8px;
+    font-size: 13px;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+.justification-linked-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.justification-search-input {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 13px;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+}
+.justification-search-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    background: #0052cc;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.justification-results {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px 0;
+    max-height: 120px;
+    overflow-y: auto;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+}
+.justification-results li {
+    padding: 4px 8px;
+    border-bottom: 1px solid #f4f5f7;
+}
+.justification-add-link-btn {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    text-align: left;
+    font-size: 13px;
+    color: #0052cc;
+    cursor: pointer;
+    width: 100%;
+}
+.justification-add-link-btn:hover {
+    text-decoration: underline;
+}
+.justification-linked-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.justification-linked-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.justification-linked-list a {
+    color: #0052cc;
+    text-decoration: none;
+}
+.justification-linked-list a:hover {
+    text-decoration: underline;
+}
+.justification-remove-link {
+    background: none;
+    border: none;
+    color: #5e6c84;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 14px;
+}
+.justification-remove-link:hover {
+    color: #de350b;
+}

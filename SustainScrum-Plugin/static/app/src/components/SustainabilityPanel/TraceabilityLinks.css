@@ -1,0 +1,206 @@
+.traceability-links {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #dfe1e6;
+}
+
+.traceability-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #172b4d;
+    margin: 0 0 4px 0;
+}
+
+.traceability-description {
+    font-size: 12px;
+    color: #5e6c84;
+    margin: 0 0 8px 0;
+}
+
+.traceability-error {
+    font-size: 12px;
+    color: #de350b;
+    margin-bottom: 8px;
+}
+
+.traceability-loading {
+    font-size: 12px;
+    color: #5e6c84;
+    margin-bottom: 8px;
+}
+
+.traceability-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px 0;
+}
+
+.traceability-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #f4f5f7;
+    border-radius: 3px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.traceability-link-type {
+    color: #5e6c84;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.traceability-link-key {
+    color: #0052cc;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.traceability-link-key:hover {
+    text-decoration: underline;
+}
+
+.traceability-link-summary {
+    color: #172b4d;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.traceability-remove {
+    background: none;
+    border: none;
+    color: #5e6c84;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 3px;
+}
+
+.traceability-remove:hover {
+    background: #ebecf0;
+    color: #de350b;
+}
+
+.traceability-empty {
+    font-size: 12px;
+    color: #5e6c84;
+    margin: 0 0 8px 0;
+}
+
+.traceability-add-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    background: #0052cc;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.traceability-add-btn:hover {
+    background: #0747a6;
+}
+
+.traceability-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.traceability-search-input {
+    padding: 6px 8px;
+    font-size: 13px;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+}
+
+.traceability-search-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.traceability-search-btn,
+.traceability-showall-btn,
+.traceability-cancel-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.traceability-search-btn {
+    background: #0052cc;
+    color: #fff;
+    border: none;
+}
+
+.traceability-search-btn:hover:not(:disabled) {
+    background: #0747a6;
+}
+
+.traceability-showall-btn {
+    background: #f4f5f7;
+    color: #172b4d;
+    border: 1px solid #dfe1e6;
+}
+
+.traceability-showall-btn:hover:not(:disabled) {
+    background: #ebecf0;
+}
+
+.traceability-cancel-btn {
+    background: #f4f5f7;
+    color: #172b4d;
+    border: 1px solid #dfe1e6;
+}
+
+.traceability-search-results {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    background: #fff;
+}
+
+.traceability-search-results li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-bottom: 1px solid #f4f5f7;
+    gap: 8px;
+}
+
+.traceability-search-results li:last-child {
+    border-bottom: none;
+}
+
+.traceability-pick-btn {
+    flex: 1;
+    text-align: left;
+    padding: 4px 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #0052cc;
+}
+
+.traceability-pick-btn:hover {
+    text-decoration: underline;
+}
+
+.traceability-pick-type {
+    font-size: 11px;
+    color: #5e6c84;
+}

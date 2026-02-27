@@ -1,6 +1,6 @@
 modules:
   jira:adminPage:
-    - key: sustainscrum-plugin-hello-world-admin-page
+    - key: sustainscrum-admin-page
       resource: admin-page-resource
       resolver:
         function: resolver
@@ -29,13 +29,13 @@ modules:
       handler: index.handler
 resources:
   - key: admin-page-resource
-    path: static/hello-world/build-admin
+    path: static/app/build-admin
   - key: issue-panel-resource
-    path: static/hello-world/build-issue
+    path: static/app/build-issue
   - key: dashboard-resource
-    path: static/hello-world/build-dashboard
+    path: static/app/build-dashboard
   - key: action-resource
-    path: static/hello-world/build-action
+    path: static/app/build-action
 permissions:
   scopes:
     - read:jira-work

@@ -147,7 +147,7 @@ resolver.define('getSuMM', async (req) => {
         }
         
         if (!summData) {
-            // Return default SuMM structure if none exists
+            // No config saved yet – return defaults; progress is optional
             const defaultDimensions = [
                 { id: 'environment', name: 'Environment', enabled: true, weight: 3, progress: 0 },
                 { id: 'society', name: 'Society', enabled: true, weight: 4, progress: 0 },
@@ -155,10 +155,12 @@ resolver.define('getSuMM', async (req) => {
                 { id: 'individual', name: 'Individual', enabled: false, weight: 0, progress: 0 },
                 { id: 'technical', name: 'Technical', enabled: false, weight: 0, progress: 0 }
             ];
-            
-            // Calculate progress for default dimensions
-            const dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
-            
+            let dimensionsWithProgress = defaultDimensions;
+            try {
+                dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
+            } catch (e) {
+                console.warn('Could not calculate progress for default SuMM:', e);
+            }
             return {
                 projectKey,
                 dimensions: dimensionsWithProgress,
@@ -171,7 +173,6 @@ resolver.define('getSuMM', async (req) => {
         return summData;
     } catch (error) {
         console.error('Error getting SuMM:', error);
-        // Return default structure instead of error to allow UI to work
         const defaultDimensions = [
             { id: 'environment', name: 'Environment', enabled: true, weight: 3, progress: 0 },
             { id: 'society', name: 'Society', enabled: true, weight: 4, progress: 0 },
@@ -179,24 +180,24 @@ resolver.define('getSuMM', async (req) => {
             { id: 'individual', name: 'Individual', enabled: false, weight: 0, progress: 0 },
             { id: 'technical', name: 'Technical', enabled: false, weight: 0, progress: 0 }
         ];
-        
-        // Try to calculate progress even if storage had errors (might still work for reading)
         let dimensionsWithProgress = defaultDimensions;
         try {
-            // Use Forge storage API (storage from @forge/api)
             dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
         } catch (e) {
-            // If progress calculation fails, use defaults
             console.warn('Could not calculate progress:', e);
         }
-        
+        const isStorageError = (error.message || '').toLowerCase().includes('storage') ||
+            (error.message || '').toLowerCase().includes('not authorized') ||
+            (error.message || '').toLowerCase().includes('permission');
         return {
             projectKey,
             dimensions: dimensionsWithProgress,
             totalWeight: 9,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            storageWarning: 'Error loading configuration - using default. Please check app permissions.'
+            storageWarning: isStorageError
+                ? 'Storage nicht verfügbar. App bitte neu installieren (Einstellungen → Apps), dann Konfiguration erneut speichern.'
+                : 'Konfiguration konnte nicht geladen werden. Du kannst die Werte anpassen und über „Save Configuration“ speichern.'
         };
     }
 });
@@ -401,13 +402,14 @@ resolver.define('saveIssueAssessment', async (req) => {
             }
         }
         
-        // Prepare data for storage
+        // Prepare data for storage (incl. Nachhaltigkeitsbegründungsaufzeichnung with linkedIssueKeys)
         const dataToStore = {
             issueKey,
             projectKey,
             summDimensionId: assessmentData.summDimensionId,
             susafScores: assessmentData.susafScores,
-            answers: assessmentData.answers || null, // Store individual answers for edit mode
+            answers: assessmentData.answers || null,
+            justification: assessmentData.justification || null, // { compromises, alternatives, rationale, linkedIssueKeys }
             weightedKPI,
             assessedAt: new Date().toISOString(),
             assessedBy: assessmentData.assessedBy || 'unknown'
@@ -768,19 +770,16 @@ async function getSprintsFromIssues(projectKey) {
     try {
         console.log('Getting sprints from issues for project:', projectKey);
         
-        // Search for issues in the project that have sprint information
-        // The sprint field is typically customfield_10020
-        const searchRoute = route`/rest/api/3/search`;
+        // Search for issues with sprint info (POST /search/jql – more reliable than GET)
+        const searchRoute = route`/rest/api/3/search/jql`;
         const searchResponse = await asUser().requestJira(searchRoute, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            },
-            params: {
-                jql: `project = ${projectKey} AND sprint IS NOT EMPTY`,
-                fields: 'customfield_10020', // Sprint field
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jql: `project = "${projectKey}" AND sprint IS NOT EMPTY`,
+                fields: ['customfield_10020'],
                 maxResults: 100
-            }
+            })
         });
 
         if (!searchResponse.ok) {
@@ -794,7 +793,7 @@ async function getSprintsFromIssues(projectKey) {
         }
 
         const searchData = await searchResponse.json();
-        const issues = searchData.issues || [];
+        const issues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
         
         console.log(`Found ${issues.length} issues with sprint information`);
         
@@ -888,14 +887,14 @@ resolver.define('getCurrentIssueKey', async (req) => {
 });
 
 /**
- * Get issue information (for displaying in panel)
+ * Get issue information (for displaying in panel) from Jira API
+ * Includes issuetype, status, summary, and issuelinks for traceability
  * @param {Object} req - Request object containing issueKey (optional, will try to get from context)
  * @returns {Object} Issue information
  */
 resolver.define('getIssueInfo', async (req) => {
     let { issueKey } = req.payload || {};
     
-    // If no issue key provided, try to get from context
     if (!issueKey) {
         try {
             const context = req.context;
@@ -909,13 +908,196 @@ resolver.define('getIssueInfo', async (req) => {
         return { error: 'Issue key is required' };
     }
 
-    // In a real implementation, this would fetch from Jira API
-    // For now, return basic info
-    return {
-        issueKey,
-        type: 'Sustainability Story',
-        status: 'In Progress'
-    };
+    try {
+        const issueRoute = route`/rest/api/3/issue/${issueKey}`;
+        const response = await asUser().requestJira(issueRoute, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            params: { fields: 'issuetype,status,summary,issuelinks' }
+        });
+        if (!response.ok) {
+            const errText = await response.text();
+            console.warn('getIssueInfo Jira API error:', response.status, errText);
+            return {
+                issueKey,
+                type: 'Story',
+                status: 'In Progress',
+                summary: '',
+                issueLinks: []
+            };
+        }
+        const data = await response.json();
+        const fields = data.fields || {};
+        const issueType = fields.issuetype ? fields.issuetype.name : 'Story';
+        const status = fields.status ? fields.status.name : 'In Progress';
+        const summary = fields.summary || '';
+        const rawLinks = fields.issuelinks || [];
+        const issueLinks = rawLinks.map(link => {
+            const other = link.outwardIssue && link.outwardIssue.key !== issueKey
+                ? link.outwardIssue
+                : link.inwardIssue;
+            const direction = link.outwardIssue && link.outwardIssue.key !== issueKey ? 'outward' : 'inward';
+            const linkTypeName = link.type ? link.type.name : 'Relates';
+            return {
+                id: link.id,
+                linkTypeName,
+                direction,
+                otherKey: other ? other.key : (link.inwardIssue?.key || link.outwardIssue?.key),
+                otherSummary: other ? (other.fields && other.fields.summary ? other.fields.summary : other.key) : ''
+            };
+        });
+        return {
+            issueKey,
+            type: issueType,
+            status,
+            summary,
+            issueLinks
+        };
+    } catch (e) {
+        console.warn('getIssueInfo failed:', e);
+        return {
+            issueKey,
+            type: 'Story',
+            status: 'In Progress',
+            summary: '',
+            issueLinks: []
+        };
+    }
+});
+
+/**
+ * Get issue links for traceability
+ */
+resolver.define('getIssueLinks', async (req) => {
+    const { issueKey } = req.payload || {};
+    if (!issueKey) return { error: 'issueKey is required' };
+    try {
+        const issueRoute = route`/rest/api/3/issue/${issueKey}`;
+        const response = await asUser().requestJira(issueRoute, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            params: { fields: 'issuelinks' }
+        });
+        if (!response.ok) return { error: 'Failed to load issue links' };
+        const data = await response.json();
+        const rawLinks = (data.fields || {}).issuelinks || [];
+        const links = rawLinks.map(link => {
+            const other = link.outwardIssue && link.outwardIssue.key !== issueKey ? link.outwardIssue : link.inwardIssue;
+            const direction = link.outwardIssue && link.outwardIssue.key !== issueKey ? 'outward' : 'inward';
+            return {
+                id: link.id,
+                linkTypeName: (link.type && link.type.name) || 'Relates',
+                direction,
+                otherKey: other ? other.key : (link.inwardIssue?.key || link.outwardIssue?.key),
+                otherSummary: (other && other.fields && other.fields.summary) ? other.fields.summary : ''
+            };
+        });
+        return { links };
+    } catch (e) {
+        console.warn('getIssueLinks failed:', e);
+        return { error: e.message || 'Failed to get issue links' };
+    }
+});
+
+/**
+ * Create an issue link (traceability: SUS ↔ User Story)
+ * Payload: { outwardIssueKey, inwardIssueKey, linkTypeName? } — linkTypeName defaults to "Relates"
+ */
+resolver.define('createIssueLink', async (req) => {
+    const { outwardIssueKey, inwardIssueKey, linkTypeName } = req.payload || {};
+    if (!outwardIssueKey || !inwardIssueKey) return { error: 'outwardIssueKey and inwardIssueKey are required' };
+    try {
+        const linkRoute = route`/rest/api/3/issueLink`;
+        const response = await asUser().requestJira(linkRoute, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+                type: { name: linkTypeName || 'Relates' },
+                inwardIssue: { key: inwardIssueKey },
+                outwardIssue: { key: outwardIssueKey }
+            })
+        });
+        if (!response.ok) {
+            const errText = await response.text();
+            return { error: `Failed to create link: ${response.status}` };
+        }
+        return { success: true };
+    } catch (e) {
+        console.warn('createIssueLink failed:', e);
+        return { error: e.message || 'Failed to create issue link' };
+    }
+});
+
+/**
+ * Delete an issue link by link id
+ */
+resolver.define('deleteIssueLink', async (req) => {
+    const { linkId } = req.payload || {};
+    if (!linkId) return { error: 'linkId is required' };
+    try {
+        const linkRoute = route`/rest/api/3/issueLink/${linkId}`;
+        const response = await asUser().requestJira(linkRoute, { method: 'DELETE' });
+        if (!response.ok) return { error: `Failed to delete link: ${response.status}` };
+        return { success: true };
+    } catch (e) {
+        console.warn('deleteIssueLink failed:', e);
+        return { error: e.message || 'Failed to delete issue link' };
+    }
+});
+
+/**
+ * Search issues in project (for link picker and justification linked issues)
+ * Payload: { projectKey, currentIssueKey?, query?, maxResults? }
+ */
+resolver.define('searchIssues', async (req) => {
+    const { projectKey, currentIssueKey, query, maxResults = 50 } = req.payload || {};
+    if (!projectKey) return { error: 'projectKey is required' };
+    try {
+        const q = (query && query.trim()) ? query.trim() : '';
+        const isExactKeySearch = q && q.match(/^[A-Za-z][A-Za-z0-9]*-\d+$/);
+        let jql = `project = "${projectKey}"`;
+        if (currentIssueKey) jql += ` AND key != "${currentIssueKey}"`;
+        if (q) {
+            if (isExactKeySearch) {
+                jql += ` AND key = "${q}"`;
+            } else {
+                jql += ` AND summary ~ "${q.replace(/"/g, '\\"')}"`;
+            }
+        }
+        jql += ' ORDER BY key ASC';
+        // Use POST /rest/api/3/search/jql (GET/params can cause 400; POST with JSON body is more reliable)
+        const searchRoute = route`/rest/api/3/search/jql`;
+        const response = await asUser().requestJira(searchRoute, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jql,
+                maxResults: Math.min(maxResults, 100),
+                fields: ['summary', 'issuetype']
+            })
+        });
+        if (!response.ok) {
+            const errBody = await response.text();
+            console.warn('searchIssues Jira API error:', response.status, jql, errBody);
+            let errMsg = `Suche fehlgeschlagen (${response.status}).`;
+            try {
+                const errJson = JSON.parse(errBody);
+                if (errJson.errorMessages && errJson.errorMessages.length) errMsg += ' ' + errJson.errorMessages.join(' ');
+                else if (errJson.errors && Object.keys(errJson.errors).length) errMsg += ' ' + JSON.stringify(errJson.errors);
+            } catch (_) {}
+            return { error: errMsg };
+        }
+        const data = await response.json();
+        const issues = (data.values !== undefined ? data.values : (data.issues || [])).map(issue => ({
+            key: issue.key,
+            summary: (issue.fields && issue.fields.summary) || '',
+            type: (issue.fields && issue.fields.issuetype && issue.fields.issuetype.name) || 'Unknown'
+        }));
+        return { issues };
+    } catch (e) {
+        console.warn('searchIssues failed:', e);
+        return { error: e.message || 'Search failed' };
+    }
 });
 
 /**
@@ -1007,25 +1189,18 @@ resolver.define('getDashboardData', async (req) => {
         
         if (issueKeysToCheck.length > 0) {
             try {
-                // Check if issues exist using Jira API
-                // Use JQL to search for all issues in the project
-                const jql = `project = ${projectKey} AND key IN (${issueKeysToCheck.join(',')})`;
-                const searchRoute = route`/rest/api/3/search`;
+                // Check if issues exist (POST /search/jql)
+                const jql = `project = "${projectKey}" AND key IN (${issueKeysToCheck.map(k => `"${k}"`).join(',')})`;
+                const searchRoute = route`/rest/api/3/search/jql`;
                 const searchResponse = await asUser().requestJira(searchRoute, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    params: {
-                        jql: jql,
-                        fields: 'key',
-                        maxResults: 1000
-                    }
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jql, fields: ['key'], maxResults: 1000 })
                 });
 
                 if (searchResponse.ok) {
                     const searchData = await searchResponse.json();
-                    const existingIssues = searchData.issues || [];
+                    const existingIssues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
                     existingIssues.forEach(issue => {
                         validIssueKeys.add(issue.key);
                     });

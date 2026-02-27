@@ -3,6 +3,7 @@ import { getIssueAssessment, getIssueInfo, saveIssueAssessment, getCurrentIssueK
 import NotAssessedView from './NotAssessedView';
 import AssessedView from './AssessedView';
 import AssessmentWizard from './AssessmentWizard';
+import TraceabilityLinks from './TraceabilityLinks';
 import './SustainabilityPanel.css';
 
 /**
@@ -167,7 +168,8 @@ function SustainabilityPanel() {
                 setIssueInfo({
                     issueKey: key,
                     type: 'Sustainability Story',
-                    status: 'In Progress'
+                    status: 'In Progress',
+                    issueLinks: []
                 });
             }
             
@@ -202,7 +204,8 @@ function SustainabilityPanel() {
             setIssueInfo({
                 issueKey: key,
                 type: 'Sustainability Story',
-                status: 'In Progress'
+                status: 'In Progress',
+                issueLinks: []
             });
             setAssessment(null);
             // Don't show error - defaults work fine for now
@@ -311,6 +314,13 @@ function SustainabilityPanel() {
                     issueInfo={issueInfo}
                     assessment={assessment}
                     onEditAssessment={handleEditAssessment}
+                />
+            )}
+            {issueKey && issueInfo && (
+                <TraceabilityLinks
+                    issueKey={issueKey}
+                    issueLinks={issueInfo.issueLinks}
+                    onLinksChange={() => loadIssueData(issueKey)}
                 />
             )}
         </div>

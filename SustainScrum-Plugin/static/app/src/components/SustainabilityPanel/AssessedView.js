@@ -85,6 +85,42 @@ function AssessedView({ issueInfo, assessment, onEditAssessment }) {
                 })}
             </div>
             
+            {assessment.justification && (assessment.justification.compromises || assessment.justification.alternatives || assessment.justification.rationale || (assessment.justification.linkedIssueKeys && assessment.justification.linkedIssueKeys.length > 0)) && (
+                <div className="justification-display-section">
+                    <h3 className="scores-title">Nachhaltigkeitsbegründung</h3>
+                    {assessment.justification.compromises && (
+                        <div className="justification-block">
+                            <span className="justification-label">Kompromisse:</span>
+                            <p className="justification-text">{assessment.justification.compromises}</p>
+                        </div>
+                    )}
+                    {assessment.justification.alternatives && (
+                        <div className="justification-block">
+                            <span className="justification-label">Alternativen:</span>
+                            <p className="justification-text">{assessment.justification.alternatives}</p>
+                        </div>
+                    )}
+                    {assessment.justification.rationale && (
+                        <div className="justification-block">
+                            <span className="justification-label">Begründung:</span>
+                            <p className="justification-text">{assessment.justification.rationale}</p>
+                        </div>
+                    )}
+                    {assessment.justification.linkedIssueKeys && assessment.justification.linkedIssueKeys.length > 0 && (
+                        <div className="justification-block">
+                            <span className="justification-label">Verknüpfte Issues:</span>
+                            <ul className="justification-linked-keys">
+                                {assessment.justification.linkedIssueKeys.map(key => (
+                                    <li key={key}>
+                                        <a href={`${window.location.origin}/browse/${key}`} target="_blank" rel="noopener noreferrer">{key}</a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+            
             <button 
                 className="edit-assessment-button"
                 onClick={onEditAssessment}
