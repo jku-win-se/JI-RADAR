@@ -157,7 +157,7 @@ resolver.define('getSuMM', async (req) => {
             ];
             
             // Calculate progress for default dimensions
-            const dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, store);
+            const dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
             
             return {
                 projectKey,
@@ -184,7 +184,7 @@ resolver.define('getSuMM', async (req) => {
         let dimensionsWithProgress = defaultDimensions;
         try {
             // Use Forge storage API (storage from @forge/api)
-            dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, store);
+            dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
         } catch (e) {
             // If progress calculation fails, use defaults
             console.warn('Could not calculate progress:', e);
