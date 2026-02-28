@@ -17,6 +17,7 @@ function SuMMConfig() {
     const [error, setError] = useState(null);
     const [warning, setWarning] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
+    const [changeReason, setChangeReason] = useState('');
 
     // Default dimensions structure
     const defaultDimensions = [
@@ -231,7 +232,7 @@ function SuMMConfig() {
         setSuccessMessage(null);
 
         try {
-            const result = await saveSuMM(projectKey, summData);
+            const result = await saveSuMM(projectKey, { ...summData, changeReason: changeReason.trim() || undefined });
             if (result.error) {
                 setError(result.error);
                 // If it's a storage error, show it as a warning but don't block the UI
@@ -242,8 +243,8 @@ function SuMMConfig() {
                 setSuccessMessage('SuMM configuration saved successfully!');
                 setSummData(result.data);
                 setError(null);
-                setWarning(null); // Clear warning – config was saved, storage works
-                // Clear success message after 3 seconds
+                setWarning(null);
+                setChangeReason('');
                 setTimeout(() => setSuccessMessage(null), 3000);
             }
         } catch (err) {
@@ -410,6 +411,25 @@ function SuMMConfig() {
                 <div className={`total-weight ${isTotalValid ? 'valid' : 'invalid'}`}>
                     Total Weight: {totalWeight}/9 {isTotalValid ? '✓' : '✗'}
                 </div>
+            </div>
+
+            <div className="governance-section">
+                <label htmlFor="change-reason" className="governance-label">Reason for change (optional)</label>
+                <input
+                    id="change-reason"
+                    type="text"
+                    value={changeReason}
+                    onChange={(e) => setChangeReason(e.target.value)}
+                    className="change-reason-input"
+                    placeholder="e.g. Stakeholder agreement on new priorities"
+                />
+                {(summData.updatedAt || summData.updatedBy) && (
+                    <div className="last-updated">
+                        Last updated: {summData.updatedAt ? new Date(summData.updatedAt).toLocaleString() : '—'}
+                        {summData.updatedBy && summData.updatedBy !== 'unknown' && ` by ${summData.updatedBy}`}
+                        {summData.changeReason && ` — ${summData.changeReason}`}
+                    </div>
+                )}
             </div>
 
             {warning && (

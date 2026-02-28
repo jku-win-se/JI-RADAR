@@ -208,7 +208,7 @@ resolver.define('getSuMM', async (req) => {
  * @returns {Object} Success status or error
  */
 resolver.define('saveSuMM', async (req) => {
-    const { projectKey, summData } = req.payload;
+    const { projectKey, summData, changeReason } = req.payload;
     
     if (!projectKey || !summData) {
         return { error: 'Project key and SuMM data are required' };
@@ -221,23 +221,27 @@ resolver.define('saveSuMM', async (req) => {
     }
 
     try {
+        const storageKey = `summ:${projectKey}`;
+        const existing = await storage.get(storageKey);
+        const now = new Date().toISOString();
+        const updatedBy = (req.context && req.context.accountId) ? req.context.accountId : 'unknown';
+        const reason = changeReason != null ? String(changeReason).trim() : (summData.changeReason != null ? String(summData.changeReason).trim() : null);
+
         // Calculate total weight of enabled dimensions
         const enabledDimensions = summData.dimensions.filter(d => d.enabled);
         const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
         
-        // Prepare data for storage
+        // Prepare data for storage (Governance: updatedBy, changeReason)
         const dataToStore = {
             ...summData,
             projectKey,
             totalWeight,
-            updatedAt: new Date().toISOString(),
-            createdAt: summData.createdAt || new Date().toISOString()
+            createdAt: (existing && existing.createdAt) ? existing.createdAt : now,
+            updatedAt: now,
+            updatedBy: updatedBy,
+            changeReason: reason || null
         };
         
-        // Storage key format: summ:{projectKey}
-        const storageKey = `summ:${projectKey}`;
-        // Use asApp() for storage operations
-        // Use Forge storage API (storage from @forge/api)
         await storage.set(storageKey, dataToStore);
         
         return { success: true, data: dataToStore };
@@ -1386,10 +1390,52 @@ resolver.define('getDashboardData', async (req) => {
 });
 
 /**
+ * Check if an issue has at least one link to a Sustainability Story (or similar type).
+ * Linked issue type name must contain "sustainability", "sus", or "nachhaltigkeitsgeschichte" (case-insensitive).
+ * @param {string} issueKey - Jira issue key
+ * @returns {Promise<{ hasLink: boolean, error?: string }>}
+ */
+async function issueHasLinkToSustainabilityStory(issueKey) {
+    try {
+        const issueRoute = route`/rest/api/3/issue/${issueKey}`;
+        const res = await asUser().requestJira(issueRoute, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            params: { fields: 'issuelinks' }
+        });
+        if (!res.ok) return { hasLink: false, error: 'Could not load issue links' };
+        const data = await res.json();
+        const rawLinks = (data.fields || {}).issuelinks || [];
+        const otherKeys = [];
+        rawLinks.forEach(link => {
+            const other = link.outwardIssue || link.inwardIssue;
+            if (other && other.key) otherKeys.push(other.key);
+        });
+        if (otherKeys.length === 0) return { hasLink: false };
+        const jql = `key in (${otherKeys.join(',')})`;
+        const searchRoute = route`/rest/api/3/search`;
+        const searchRes = await asUser().requestJira(searchRoute, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ jql, fields: ['issuetype'], maxResults: 50 })
+        });
+        if (!searchRes.ok) return { hasLink: false };
+        const searchData = await searchRes.json();
+        const susTypeNames = ['sustainability', 'sus', 'nachhaltigkeitsgeschichte'];
+        const hasLink = (searchData.issues || []).some(issue => {
+            const name = (issue.fields && issue.fields.issuetype && issue.fields.issuetype.name) ? issue.fields.issuetype.name.toLowerCase() : '';
+            return susTypeNames.some(term => name.includes(term));
+        });
+        return { hasLink };
+    } catch (e) {
+        console.warn('issueHasLinkToSustainabilityStory failed:', e);
+        return { hasLink: false, error: e.message };
+    }
+}
+
+/**
  * Issue Action: Complete with Sustainability Check
- * Checks if issue has sustainability assessment before allowing transition to Done
- * @param {Object} req - Request object containing issueKey and action context
- * @returns {Object} Result with success status or error
+ * Checks: (1) assessment present, (2) link to Sustainability Story, (3) justification when scores ≤2 (trade-offs).
  */
 resolver.define('completeWithSustainabilityCheck', async (req) => {
     const { issueKey } = req.payload;
@@ -1402,15 +1448,12 @@ resolver.define('completeWithSustainabilityCheck', async (req) => {
     }
 
     try {
-        // Check if issue has a sustainability assessment
-        // Use Forge storage API (storage from @forge/api)
         const storageKey = `assessment:${issueKey}`;
         
         let assessment;
         try {
             assessment = await storage.get(storageKey);
         } catch (storageError) {
-            // If storage is not authorized, we can't check
             console.warn(`Storage not authorized for Green DoD check on ${issueKey}`);
             return { 
                 error: 'Storage not available - could not verify sustainability assessment. Please complete the assessment in the Sustainability Panel.',
@@ -1419,21 +1462,46 @@ resolver.define('completeWithSustainabilityCheck', async (req) => {
             };
         }
         
-        // Check if assessment exists and has valid data
         const hasAssessment = assessment && 
                              (assessment.susafScores || assessment.weightedKPI !== undefined) &&
                              Object.keys(assessment.susafScores || {}).length > 0;
         
         if (!hasAssessment) {
-            console.log(`Green DoD validation failed for ${issueKey} - no assessment found`);
             return {
                 error: 'Sustainability assessment is required before marking this issue as Done. Please complete the assessment in the Sustainability Panel.',
                 success: false,
                 missingAssessment: true
             };
         }
+
+        // Green DoD: Link to Sustainability Story (or similar type)
+        const { hasLink: hasSusLink } = await issueHasLinkToSustainabilityStory(issueKey);
+        if (!hasSusLink) {
+            return {
+                error: 'A link to a Sustainability Story (or similar issue type) is required before completing. Add the link in the Traceability section of the Sustainability Panel.',
+                success: false,
+                missingSusLink: true
+            };
+        }
+
+        // Green DoD: Justification required when any dimension score ≤ 2 (trade-off / low impact)
+        const scores = assessment.susafScores || {};
+        const hasLowScore = Object.values(scores).some(v => typeof v === 'number' && v <= 2);
+        if (hasLowScore) {
+            const j = assessment.justification || {};
+            const hasJustification = [j.compromises, j.alternatives, j.rationale].some(
+                f => f != null && String(f).trim() !== ''
+            );
+            if (!hasJustification) {
+                return {
+                    error: 'Low sustainability scores (≤2) require a justification. Please add a justification (compromises, alternatives, or rationale) in the Sustainability Panel.',
+                    success: false,
+                    missingJustification: true
+                };
+            }
+        }
         
-        // Assessment exists - now try to transition issue to Done
+        // All checks passed - transition to Done
         try {
             // Get the issue to find available transitions
             const issueRoute = route`/rest/api/3/issue/${issueKey}/transitions`;

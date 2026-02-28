@@ -66,6 +66,40 @@
     border-radius: 3px;
 }
 
+.governance-section {
+    margin-bottom: 16px;
+}
+
+.governance-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #42526e;
+    margin-bottom: 6px;
+}
+
+.change-reason-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 8px 12px;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.change-reason-input:focus {
+    outline: none;
+    border-color: #0052cc;
+    box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
+}
+
+.last-updated {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6b778c;
+}
+
 .total-weight {
     font-size: 16px;
     font-weight: 600;
