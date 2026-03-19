@@ -8,11 +8,12 @@ import { invoke } from '@forge/bridge';
  * Get dashboard data (KPIs, trends, heatmap)
  * @param {string} projectKey - Jira project key
  * @param {string} sprintId - Optional sprint ID
+ * @param {string} sprintName - Optional sprint name (for JQL fallback)
  * @returns {Promise<Object>} Dashboard data
  */
-export const getDashboardData = async (projectKey, sprintId = null) => {
+export const getDashboardData = async (projectKey, sprintId = null, sprintName = null) => {
     try {
-        const result = await invoke('getDashboardData', { projectKey, sprintId });
+        const result = await invoke('getDashboardData', { projectKey, sprintId, sprintName });
         return result;
     } catch (error) {
         console.error('Error getting dashboard data:', error);

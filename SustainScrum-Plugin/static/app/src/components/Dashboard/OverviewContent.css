@@ -49,6 +49,13 @@
     border-radius: 6px;
 }
 
+.overview-method-note {
+    font-size: 12px;
+    color: #6b778c;
+    margin: 12px 0 0 0;
+    font-style: italic;
+}
+
 .overview-stats-section {
     margin-bottom: 32px;
 }

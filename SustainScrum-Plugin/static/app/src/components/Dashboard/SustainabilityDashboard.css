@@ -131,6 +131,7 @@
     font-style: italic;
 }
 
+.refresh-button,
 .export-button {
     padding: 8px 16px;
     border: 1px solid #dfe1e6;
@@ -141,10 +142,16 @@
     cursor: pointer;
 }
 
+.refresh-button {
+    margin-right: 8px;
+}
+
+.refresh-button:hover:not(:disabled),
 .export-button:hover:not(:disabled) {
     background-color: #f4f5f7;
 }
 
+.refresh-button:disabled,
 .export-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;

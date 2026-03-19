@@ -7,8 +7,8 @@ import './SuMMConfig.css';
  * Main component for SuMM (Sustainability Management Matrix) configuration
  * Displays all dimensions with enable/disable and weight controls
  */
-function SuMMConfig() {
-    const [projectKey, setProjectKey] = useState(''); // Project key
+function SuMMConfig({ initialProjectKey = null }) {
+    const [projectKey, setProjectKey] = useState(initialProjectKey || ''); // Project key (from project page context or selector)
     const [projects, setProjects] = useState([]);
     const [summData, setSummData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -27,6 +27,13 @@ function SuMMConfig() {
         { id: 'individual', name: 'Individual', enabled: false, weight: 0, progress: 0 },
         { id: 'technical', name: 'Technical', enabled: false, weight: 0, progress: 0 }
     ];
+
+    // When opened from project page, pre-select that project
+    useEffect(() => {
+        if (initialProjectKey && initialProjectKey !== projectKey) {
+            setProjectKey(initialProjectKey);
+        }
+    }, [initialProjectKey]);
 
     // Load projects on component mount
     useEffect(() => {

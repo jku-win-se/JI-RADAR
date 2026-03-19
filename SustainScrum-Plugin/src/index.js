@@ -103,6 +103,66 @@ async function calculateDimensionProgress(projectKey, dimensions, store) {
 }
 
 /**
+ * TOPSIS (Technique for Order Preference by Similarity to Ideal Solution).
+ * Per dimension: alternatives = issues, criterion = dimension score. Then weighted aggregate.
+ * @param {Array} assessments - List of { issueKey, susafScores } (scores 1-5 per dimension)
+ * @param {Array} enabledDimensions - List of { id, weight } with weight > 0
+ * @returns {{ perIssueKPI: Object.<string,number>, perDimensionPerIssue: Object.<string,Object.<string,number>>, dimensionKPIs: Object.<string,number> }}
+ */
+function computeTOPSIS(assessments, enabledDimensions) {
+    const totalWeight = enabledDimensions.reduce((sum, d) => sum + d.weight, 0);
+    if (totalWeight <= 0 || !assessments || assessments.length === 0) {
+        return { perIssueKPI: {}, perDimensionPerIssue: {}, dimensionKPIs: {} };
+    }
+    const n = assessments.length;
+    const perDimensionPerIssue = {}; // dimId -> { issueKey: C_i (0-1) }
+    const dimIds = enabledDimensions.map(d => d.id);
+
+    enabledDimensions.forEach(dim => {
+        const scores = assessments.map(a => {
+            const s = a.susafScores && a.susafScores[dim.id];
+            return (s !== undefined && s !== null && s > 0) ? Number(s) : 0;
+        });
+        const sumSq = scores.reduce((acc, s) => acc + s * s, 0);
+        const norm = Math.sqrt(sumSq) || 1;
+        const r = scores.map(s => s / norm);
+        const w = dim.weight / totalWeight;
+        const v = r.map(ri => w * ri);
+        const Aplus = Math.max(...v);
+        const Aminus = Math.min(...v);
+        const C = v.map((vi, i) => {
+            const Dplus = Math.abs(vi - Aplus);
+            const Dminus = Math.abs(vi - Aminus);
+            const denom = Dplus + Dminus;
+            return denom > 0 ? Dminus / denom : 0.5;
+        });
+        perDimensionPerIssue[dim.id] = {};
+        assessments.forEach((a, i) => {
+            perDimensionPerIssue[dim.id][a.issueKey] = C[i];
+        });
+    });
+
+    const perIssueKPI = {};
+    assessments.forEach(a => {
+        let weightedSum = 0;
+        enabledDimensions.forEach(dim => {
+            const c = perDimensionPerIssue[dim.id] && perDimensionPerIssue[dim.id][a.issueKey];
+            if (c != null) weightedSum += (dim.weight / totalWeight) * c;
+        });
+        perIssueKPI[a.issueKey] = Math.round(weightedSum * 100);
+    });
+
+    const dimensionKPIs = {};
+    enabledDimensions.forEach(dim => {
+        const vals = Object.values(perDimensionPerIssue[dim.id] || {});
+        const avg = vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+        dimensionKPIs[dim.id] = Math.round(avg * 100);
+    });
+
+    return { perIssueKPI, perDimensionPerIssue, dimensionKPIs };
+}
+
+/**
  * Get SuMM configuration for a specific project
  * @param {Object} req - Request object containing projectKey
  * @returns {Object} SuMM configuration or null if not found
@@ -123,9 +183,7 @@ resolver.define('getSuMM', async (req) => {
         try {
             summData = await storage.get(storageKey);
         } catch (storageError) {
-            console.error('Storage error getting SuMM:', storageError);
-            // If storage is not authorized or fails, return default structure
-            // This allows the UI to work even if storage permissions are not yet set up
+            console.warn('Storage get SuMM:', storageError?.message || storageError);
             const defaultDimensions = [
                 { id: 'environment', name: 'Environment', enabled: true, weight: 3, progress: 0 },
                 { id: 'society', name: 'Society', enabled: true, weight: 4, progress: 0 },
@@ -133,16 +191,13 @@ resolver.define('getSuMM', async (req) => {
                 { id: 'individual', name: 'Individual', enabled: false, weight: 0, progress: 0 },
                 { id: 'technical', name: 'Technical', enabled: false, weight: 0, progress: 0 }
             ];
-            
             return {
                 projectKey,
                 dimensions: defaultDimensions,
                 totalWeight: 9,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                storageWarning: storageError.message && storageError.message.includes('not authorized') 
-                    ? 'Storage not authorized - using default configuration. Please reinstall the app to enable storage.'
-                    : 'Storage error - using default configuration. Please check app permissions.'
+                storageWarning: 'Saved configuration could not be loaded; default values are shown. Adjust the values below and click "Save Configuration" to store them. If saving fails, check app permissions or reinstall the app.'
             };
         }
         
@@ -172,7 +227,7 @@ resolver.define('getSuMM', async (req) => {
         
         return summData;
     } catch (error) {
-        console.error('Error getting SuMM:', error);
+        console.warn('Error getting SuMM:', error?.message || error);
         const defaultDimensions = [
             { id: 'environment', name: 'Environment', enabled: true, weight: 3, progress: 0 },
             { id: 'society', name: 'Society', enabled: true, weight: 4, progress: 0 },
@@ -186,18 +241,13 @@ resolver.define('getSuMM', async (req) => {
         } catch (e) {
             console.warn('Could not calculate progress:', e);
         }
-        const isStorageError = (error.message || '').toLowerCase().includes('storage') ||
-            (error.message || '').toLowerCase().includes('not authorized') ||
-            (error.message || '').toLowerCase().includes('permission');
         return {
             projectKey,
             dimensions: dimensionsWithProgress,
             totalWeight: 9,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            storageWarning: isStorageError
-                ? 'Storage nicht verfügbar. App bitte neu installieren (Einstellungen → Apps), dann Konfiguration erneut speichern.'
-                : 'Konfiguration konnte nicht geladen werden. Du kannst die Werte anpassen und über „Save Configuration“ speichern.'
+            storageWarning: 'Configuration could not be loaded; default values are shown. Adjust and save to store your settings. If saving fails, check app permissions.'
         };
     }
 });
@@ -304,7 +354,9 @@ function validateSuMM(summData) {
 }
 
 /**
- * Get sustainability assessment for a specific issue
+ * Get sustainability assessment for a specific issue.
+ * weightedKPI is recomputed from susafScores using current SuMM weights so that
+ * changing weights in SuMM is reflected immediately in the panel and everywhere.
  * @param {Object} req - Request object containing issueKey
  * @returns {Object} Assessment data or null if not found
  */
@@ -316,12 +368,34 @@ resolver.define('getIssueAssessment', async (req) => {
     }
 
     try {
-        // Storage key format: assessment:{issueKey}
         const storageKey = `assessment:${issueKey}`;
-        // Use Forge storage API (storage from @forge/api)
         const assessmentData = await storage.get(storageKey);
-        
-        return assessmentData || null;
+        if (!assessmentData || !assessmentData.susafScores) {
+            return assessmentData || null;
+        }
+        const projectKey = (issueKey.indexOf('-') >= 0 ? issueKey.split('-')[0] : null) || '';
+        let weightedKPI = assessmentData.weightedKPI;
+        try {
+            const summKey = `summ:${projectKey}`;
+            const summData = await storage.get(summKey);
+            if (summData && summData.dimensions && assessmentData.susafScores) {
+                const enabledDimensions = summData.dimensions.filter(d => d.enabled && d.weight > 0);
+                const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
+                if (totalWeight > 0) {
+                    let sum = 0;
+                    for (const dim of enabledDimensions) {
+                        const score = assessmentData.susafScores[dim.id];
+                        if (score !== undefined && score !== null) {
+                            sum += (score / 5) * 100 * (dim.weight / totalWeight);
+                        }
+                    }
+                    weightedKPI = Math.round(sum);
+                }
+            }
+        } catch (e) {
+            console.warn('Could not recompute KPI with current SuMM weights:', e.message);
+        }
+        return { ...assessmentData, weightedKPI: weightedKPI != null ? weightedKPI : assessmentData.weightedKPI };
     } catch (error) {
         console.error('Error getting issue assessment:', error);
         // If storage is not authorized, return null (not assessed yet)
@@ -368,42 +442,54 @@ resolver.define('saveIssueAssessment', async (req) => {
         // Get SuMM configuration to calculate KPI
         const summKey = `summ:${projectKey}`;
         const summData = await storage.get(summKey);
-        
-        // Calculate weighted KPI
         let weightedKPI = 0;
+        let topsisResult = null;
+
         if (summData && assessmentData.susafScores) {
-            const enabledDimensions = summData.dimensions.filter(d => d.enabled);
+            const enabledDimensions = summData.dimensions.filter(d => d.enabled && d.weight > 0);
             const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
-            
+
             if (totalWeight > 0) {
-                let weightedSum = 0;
-                let hasScores = false;
-                
-                enabledDimensions.forEach(dim => {
-                    const score = assessmentData.susafScores[dim.id];
-                    if (score !== undefined && score !== null && score > 0) {
-                        hasScores = true;
-                        // Convert 1-5 scale to 0-100 for KPI calculation
-                        const normalizedScore = (score / 5) * 100;
-                        weightedSum += normalizedScore * (dim.weight / totalWeight);
+                const indexKey = `assessments:${projectKey}`;
+                let allAssessmentsForTOPSIS = [];
+                try {
+                    const index = await storage.get(indexKey);
+                    const list = (index && Array.isArray(index)) ? index : [];
+                    const currentData = {
+                        issueKey,
+                        susafScores: assessmentData.susafScores
+                    };
+                    for (const item of list) {
+                        if (item.issueKey === issueKey) continue;
+                        try {
+                            const a = await storage.get(`assessment:${item.issueKey}`);
+                            if (a && a.susafScores) allAssessmentsForTOPSIS.push(a);
+                        } catch (_) { /* skip */ }
                     }
-                });
-                
-                if (hasScores) {
-                    weightedKPI = Math.round(weightedSum);
-                } else {
-                    console.warn('Assessment has no valid scores, KPI will be 0');
+                    allAssessmentsForTOPSIS.push(currentData);
+                } catch (_) {
+                    allAssessmentsForTOPSIS = [{ issueKey, susafScores: assessmentData.susafScores }];
                 }
-            } else {
-                console.warn('SuMM has no enabled dimensions with weight > 0');
+
+                if (allAssessmentsForTOPSIS.length >= 2) {
+                    topsisResult = computeTOPSIS(allAssessmentsForTOPSIS, enabledDimensions);
+                    weightedKPI = topsisResult.perIssueKPI[issueKey] != null ? topsisResult.perIssueKPI[issueKey] : 0;
+                } else {
+                    let weightedSum = 0;
+                    let hasScores = false;
+                    enabledDimensions.forEach(dim => {
+                        const score = assessmentData.susafScores[dim.id];
+                        if (score !== undefined && score !== null && score > 0) {
+                            hasScores = true;
+                            weightedSum += (score / 5) * 100 * (dim.weight / totalWeight);
+                        }
+                    });
+                    weightedKPI = hasScores ? Math.round(weightedSum) : 0;
+                }
             }
         } else {
-            if (!summData) {
-                console.warn(`SuMM configuration not found for project ${projectKey}`);
-            }
-            if (!assessmentData.susafScores) {
-                console.warn('Assessment data has no susafScores');
-            }
+            if (!summData) console.warn(`SuMM configuration not found for project ${projectKey}`);
+            if (!assessmentData.susafScores) console.warn('Assessment data has no susafScores');
         }
         
         // Prepare data for storage (incl. Nachhaltigkeitsbegründungsaufzeichnung with linkedIssueKeys)
@@ -481,18 +567,19 @@ resolver.define('saveIssueAssessment', async (req) => {
                 } catch (e) {
                     // History doesn't exist yet, start fresh
                 }
-                
-                // Calculate KPIs per dimension for this assessment
-                const enabledDimensions = summData.dimensions.filter(d => d.enabled);
-                const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
-                
+                const enabledDims = summData.dimensions.filter(d => d.enabled);
+                const totalW = enabledDims.reduce((sum, dim) => sum + dim.weight, 0);
                 const dimensionKPIs = {};
-                if (totalWeight > 0 && assessmentData.susafScores) {
-                    enabledDimensions.forEach(dim => {
+                if (topsisResult && topsisResult.perDimensionPerIssue) {
+                    enabledDims.forEach(dim => {
+                        const c = topsisResult.perDimensionPerIssue[dim.id] && topsisResult.perDimensionPerIssue[dim.id][issueKey];
+                        dimensionKPIs[dim.id] = c != null ? Math.round(c * 100) : 0;
+                    });
+                } else if (totalW > 0 && assessmentData.susafScores) {
+                    enabledDims.forEach(dim => {
                         const score = assessmentData.susafScores[dim.id];
                         if (score !== undefined && score !== null && score > 0) {
-                            const normalizedScore = (score / 5) * 100;
-                            dimensionKPIs[dim.id] = Math.round(normalizedScore);
+                            dimensionKPIs[dim.id] = Math.round((score / 5) * 100);
                         } else {
                             dimensionKPIs[dim.id] = 0;
                         }
@@ -1110,8 +1197,11 @@ resolver.define('searchIssues', async (req) => {
  * @returns {Object} Dashboard data with KPIs and heatmap
  */
 resolver.define('getDashboardData', async (req) => {
-    const { projectKey, sprintId } = req.payload;
-    
+    const payload = req.payload || {};
+    const projectKey = payload.projectKey;
+    const sprintIdPayload = payload.sprintId ?? payload.sprint_id ?? null;
+    const sprintNamePayload = payload.sprintName ?? payload.sprint_name ?? null;
+
     if (!projectKey || projectKey === 'PROJ') {
         return { error: 'Please select a valid project' };
     }
@@ -1158,31 +1248,72 @@ resolver.define('getDashboardData', async (req) => {
         
         // If sprintId is provided, filter issues by sprint
         let filteredIssueKeys = null;
-        if (sprintId) {
+        if (sprintIdPayload != null && String(sprintIdPayload).trim() !== '') {
+            const sid = String(sprintIdPayload).trim();
+            const sprintNum = parseInt(sid, 10);
             try {
-                // Get issues in the sprint using Jira Agile API
-                const sprintRoute = route`/rest/agile/1.0/sprint/${sprintId}/issue`;
+                // 1) Try Jira Agile API
+                const sprintRoute = route`/rest/agile/1.0/sprint/${sid}/issue`;
                 const sprintIssuesResponse = await asUser().requestJira(sprintRoute, {
                     method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    params: {
-                        maxResults: 1000
-                    }
+                    headers: { 'Accept': 'application/json' },
+                    params: { maxResults: 1000 }
                 });
 
                 if (sprintIssuesResponse.ok) {
                     const sprintIssuesData = await sprintIssuesResponse.json();
                     const sprintIssues = sprintIssuesData.issues || [];
                     filteredIssueKeys = new Set(sprintIssues.map(issue => issue.key));
-                    console.log(`Found ${filteredIssueKeys.size} issues in sprint ${sprintId}`);
+                    console.log(`Sprint filter (Agile API): ${filteredIssueKeys.size} issues in sprint ${sid}`);
                 } else {
-                    console.warn('Could not get sprint issues, showing all assessments');
+                    const errText = await sprintIssuesResponse.text();
+                    console.warn(`Sprint Agile API failed (${sprintIssuesResponse.status}):`, errText.slice(0, 200));
+                }
+                if (!filteredIssueKeys || filteredIssueKeys.size === 0) {
+                    // 2) Fallback: JQL via POST /rest/api/3/search/jql (same as issue validation)
+                    const jqlById = Number.isNaN(sprintNum)
+                        ? `project = "${projectKey}" AND sprint = ${sid}`
+                        : `project = "${projectKey}" AND sprint = ${sprintNum}`;
+                    const searchRoute = route`/rest/api/3/search/jql`;
+                    const searchRes = await asUser().requestJira(searchRoute, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jql: jqlById, fields: ['key'], maxResults: 1000 })
+                    });
+                    if (searchRes.ok) {
+                        const searchData = await searchRes.json();
+                        const issues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
+                        filteredIssueKeys = new Set(issues.map(issue => issue.key));
+                        console.log(`Sprint filter (JQL by id): ${filteredIssueKeys.size} issues in sprint ${sid}`);
+                    } else {
+                        console.warn('JQL by sprint id failed:', searchRes.status);
+                    }
+                }
+                if ((!filteredIssueKeys || filteredIssueKeys.size === 0) && sprintNamePayload && String(sprintNamePayload).trim()) {
+                    // 3) Fallback: JQL by sprint name
+                    const name = String(sprintNamePayload).trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    const jqlByName = `project = "${projectKey}" AND sprint = "${name}"`;
+                    const searchRoute2 = route`/rest/api/3/search/jql`;
+                    const searchRes2 = await asUser().requestJira(searchRoute2, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jql: jqlByName, fields: ['key'], maxResults: 1000 })
+                    });
+                    if (searchRes2.ok) {
+                        const searchData2 = await searchRes2.json();
+                        const issues2 = searchData2.values !== undefined ? searchData2.values : (searchData2.issues || []);
+                        filteredIssueKeys = new Set(issues2.map(issue => issue.key));
+                        console.log(`Sprint filter (JQL by name): ${filteredIssueKeys.size} issues`);
+                    } else {
+                        console.warn('JQL by sprint name failed:', searchRes2.status);
+                    }
+                }
+                if (!filteredIssueKeys || filteredIssueKeys.size === 0) {
+                    console.warn('Could not get sprint issues (Agile + JQL failed). Applying strict filter: show only issues in sprint (none found).');
+                    filteredIssueKeys = new Set();
                 }
             } catch (e) {
                 console.warn('Error getting sprint issues:', e);
-                // Continue without filtering if sprint API fails
             }
         }
         
@@ -1263,73 +1394,62 @@ resolver.define('getDashboardData', async (req) => {
             }
         }
         
-        // Calculate KPIs for each dimension (average of all assessments)
-        const kpiData = {};
-        enabledDimensions.forEach(dim => {
-            const scores = allAssessments
-                .map(a => a.susafScores[dim.id])
-                .filter(s => s !== undefined && s !== null);
-            
-            if (scores.length > 0) {
-                // Convert 1-5 scale to 0-100 and calculate average
-                const normalizedScores = scores.map(s => (s / 5) * 100);
-                const average = normalizedScores.reduce((sum, s) => sum + s, 0) / normalizedScores.length;
-                const current = Math.round(average);
-                
-                // For now, use current as previous (trends will be implemented later)
-                const previous = current;
-                const trend = 0;
-                const trendDirection = 'up';
-                
+        // KPI calculation: TOPSIS when 2+ assessments, else weighted average
+        const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
+        let kpiData = {};
+        let overallKPI = 0;
+        let heatmapData = [];
+
+        if (allAssessments.length >= 2 && totalWeight > 0) {
+            const { perIssueKPI, perDimensionPerIssue, dimensionKPIs } = computeTOPSIS(allAssessments, enabledDimensions);
+            enabledDimensions.forEach(dim => {
+                const current = dimensionKPIs[dim.id] != null ? dimensionKPIs[dim.id] : 0;
                 kpiData[dim.id] = {
                     current,
-                    previous,
-                    trend,
-                    trendDirection
-                };
-            } else {
-                // No assessments yet, return 0
-                kpiData[dim.id] = {
-                    current: 0,
-                    previous: 0,
+                    previous: current,
                     trend: 0,
                     trendDirection: 'up'
                 };
+            });
+            const weights = enabledDimensions.map(d => d.weight / totalWeight);
+            overallKPI = Math.round(
+                enabledDimensions.reduce((sum, dim) => sum + (dimensionKPIs[dim.id] || 0) * (dim.weight / totalWeight), 0)
+            );
+            heatmapData = allAssessments.map(assessment => {
+                const scores = {};
+                enabledDimensions.forEach(dim => {
+                    const c = perDimensionPerIssue[dim.id] && perDimensionPerIssue[dim.id][assessment.issueKey];
+                    scores[dim.id] = c != null ? Math.round(c * 100) : 0;
+                });
+                return { issueKey: assessment.issueKey, scores };
+            });
+        } else {
+            enabledDimensions.forEach(dim => {
+                const scores = allAssessments
+                    .map(a => a.susafScores && a.susafScores[dim.id])
+                    .filter(s => s !== undefined && s !== null);
+                const current = scores.length > 0
+                    ? Math.round(scores.reduce((sum, s) => sum + (s / 5) * 100, 0) / scores.length)
+                    : 0;
+                kpiData[dim.id] = { current, previous: current, trend: 0, trendDirection: 'up' };
+            });
+            if (totalWeight > 0) {
+                let weightedSum = 0;
+                enabledDimensions.forEach(dim => {
+                    const kpi = kpiData[dim.id];
+                    if (kpi && kpi.current > 0) weightedSum += kpi.current * (dim.weight / totalWeight);
+                });
+                overallKPI = Math.round(weightedSum);
             }
-        });
-
-        // Calculate weighted overall KPI using SuMM weights
-        let overallKPI = 0;
-        const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
-        if (totalWeight > 0) {
-            let weightedSum = 0;
-            enabledDimensions.forEach(dim => {
-                const kpi = kpiData[dim.id];
-                if (kpi && kpi.current > 0) {
-                    // kpi.current is already normalized (0-100), so we just weight it
-                    weightedSum += kpi.current * (dim.weight / totalWeight);
-                }
+            heatmapData = allAssessments.map(assessment => {
+                const scores = {};
+                enabledDimensions.forEach(dim => {
+                    const score = assessment.susafScores && assessment.susafScores[dim.id];
+                    scores[dim.id] = (score !== undefined && score !== null) ? Math.round((score / 5) * 100) : 0;
+                });
+                return { issueKey: assessment.issueKey, scores };
             });
-            overallKPI = Math.round(weightedSum);
         }
-
-        // Heatmap data (issues × dimensions)
-        const heatmapData = allAssessments.map(assessment => {
-            const scores = {};
-            enabledDimensions.forEach(dim => {
-                const score = assessment.susafScores[dim.id];
-                if (score !== undefined && score !== null) {
-                    // Convert 1-5 scale to 0-100 for heatmap
-                    scores[dim.id] = Math.round((score / 5) * 100);
-                } else {
-                    scores[dim.id] = 0;
-                }
-            });
-            return {
-                issueKey: assessment.issueKey,
-                scores
-            };
-        });
 
         // Get historical KPI data for trends (using same store instance)
         let trendsData = {};

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { view } from '@forge/bridge';
 import SuMMConfig from './components/SuMMConfig/SuMMConfig';
 import SustainabilityPanel from './components/SustainabilityPanel/SustainabilityPanel';
 import SustainabilityDashboard from './components/Dashboard/SustainabilityDashboard';
@@ -7,12 +8,27 @@ import '@atlaskit/css-reset';
 function App() {
     const [context, setContext] = useState('admin'); // 'admin', 'issue', 'dashboard'
     const [loading, setLoading] = useState(true);
+    const [initialProjectKey, setInitialProjectKey] = useState(null); // from project page context
 
     useEffect(() => {
-        // In Forge Custom UI, we need to detect context differently
-        // Since getContext() is not available, we use multiple detection methods
-        
-        const detectContext = () => {
+        // Try getContext() first – on project page we get project.key and show SuMM there
+        const tryProjectPageContext = async () => {
+            try {
+                const ctx = await view.getContext();
+                if (ctx && ctx.project && ctx.project.key) {
+                    setInitialProjectKey(ctx.project.key);
+                    setContext('admin');
+                    setLoading(false);
+                    return true;
+                }
+            } catch (e) {
+                console.log('getContext not available or failed:', e);
+            }
+            return false;
+        };
+
+        const detectContext = async () => {
+            if (await tryProjectPageContext()) return;
             const path = window.location.pathname;
             const search = window.location.search;
             const href = window.location.href.toLowerCase();
@@ -109,7 +125,7 @@ function App() {
         };
 
         // Initial detection only (no interval to avoid flickering)
-        detectContext();
+        detectContext().catch(() => setLoading(false));
     }, []);
 
     if (loading) {
@@ -125,7 +141,7 @@ function App() {
             ) : context === 'dashboard' ? (
                 <SustainabilityDashboard />
             ) : (
-                <SuMMConfig />
+                <SuMMConfig initialProjectKey={initialProjectKey} />
             )}
         </div>
     );

@@ -15,8 +15,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "npm run build:admin && npm run build:issue && npm run build:dashboard && npm run build:action",
+    "build": "npm run build:admin && npm run build:issue && npm run build:dashboard && npm run build:action && npm run build:project",
     "build:admin": "cross-env REACT_APP_ENTRY=admin node scripts/move-build.js && cross-env REACT_APP_ENTRY=admin react-scripts build && cross-env REACT_APP_ENTRY=admin node scripts/move-build.js",
+    "build:project": "cross-env REACT_APP_ENTRY=project node scripts/move-build.js && cross-env REACT_APP_ENTRY=project react-scripts build && cross-env REACT_APP_ENTRY=project node scripts/move-build.js",
     "build:issue": "cross-env REACT_APP_ENTRY=issue node scripts/move-build.js && cross-env REACT_APP_ENTRY=issue react-scripts build && cross-env REACT_APP_ENTRY=issue node scripts/move-build.js",
     "build:dashboard": "cross-env REACT_APP_ENTRY=dashboard node scripts/move-build.js && cross-env REACT_APP_ENTRY=dashboard react-scripts build && cross-env REACT_APP_ENTRY=dashboard node scripts/move-build.js",
     "build:action": "cross-env REACT_APP_ENTRY=action node scripts/move-build.js && cross-env REACT_APP_ENTRY=action react-scripts build && cross-env REACT_APP_ENTRY=action node scripts/move-build.js",

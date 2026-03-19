@@ -5,6 +5,17 @@ modules:
       resolver:
         function: resolver
       title: SustainScrum Plugin
+  jira:projectPage:
+    - key: sustainscrum-project
+      resource: project-page-resource
+      resolver:
+        function: resolver
+      title: SustainScrum
+      pages:
+        - title: SuMM Configuration
+          route: summ
+        - title: Sustainability Dashboard
+          route: dashboard
   jira:issuePanel:
     - key: sustainability-panel
       resource: issue-panel-resource
@@ -36,12 +47,16 @@ resources:
     path: static/app/build-dashboard
   - key: action-resource
     path: static/app/build-action
+  - key: project-page-resource
+    path: static/app/build-project
 permissions:
   scopes:
     - read:jira-work
     - read:jira-user
     - write:jira-work
     - storage:app
+    - read:sprint:jira-software
+    - read:board-scope:jira-software
 app:
   runtime:
     name: nodejs24.x

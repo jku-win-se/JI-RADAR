@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { view } from '@forge/bridge';
 import { getDashboardData, getSprints } from '../../services/dashboardApi';
 import { getProjects } from '../../services/summApi';
 import KPICards from './KPICards';
@@ -10,9 +11,10 @@ import './SustainabilityDashboard.css';
 
 /**
  * Main Dashboard component for Sustainability KPIs and visualizations
+ * @param {string} [initialProjectKey] - When opened as project page, pre-selected project key
  */
-function SustainabilityDashboard() {
-    const [projectKey, setProjectKey] = useState('');
+function SustainabilityDashboard({ initialProjectKey = null }) {
+    const [projectKey, setProjectKey] = useState(initialProjectKey || '');
     const [projects, setProjects] = useState([]);
     const [loadingProjects, setLoadingProjects] = useState(true);
     const [sprints, setSprints] = useState([]);
@@ -23,6 +25,26 @@ function SustainabilityDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
+
+    // When parent passes initialProjectKey (project page router), use it
+    useEffect(() => {
+        if (initialProjectKey && initialProjectKey !== projectKey) {
+            setProjectKey(initialProjectKey);
+        }
+    }, [initialProjectKey]);
+
+    // When opened as project page (no initialProjectKey from parent), try getContext()
+    useEffect(() => {
+        if (initialProjectKey) return;
+        let cancelled = false;
+        view.getContext()
+            .then((ctx) => {
+                if (cancelled || !ctx || !ctx.project || !ctx.project.key) return;
+                setProjectKey(ctx.project.key);
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [initialProjectKey]);
 
     // Load projects on component mount
     useEffect(() => {
@@ -47,6 +69,17 @@ function SustainabilityDashboard() {
             setLoading(false);
         }
     }, [projectKey, selectedSprintId]);
+
+    // Refetch when user returns to this tab (e.g. after changing SuMM weights)
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && projectKey && projectKey !== 'PROJ') {
+                loadDashboardData();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [projectKey]);
 
     /**
      * Load list of Jira projects
@@ -142,9 +175,10 @@ function SustainabilityDashboard() {
     const loadDashboardData = async () => {
         setLoading(true);
         setError(null);
-        
+        const selectedSprint = sprints.find(s => String(s.id) === selectedSprintId);
+        const sprintName = selectedSprint ? selectedSprint.name : null;
         try {
-            const data = await getDashboardData(projectKey, selectedSprintId || null);
+            const data = await getDashboardData(projectKey, selectedSprintId || null, sprintName);
             if (data.error) {
                 setError(data.error);
             } else {
@@ -156,6 +190,60 @@ function SustainabilityDashboard() {
         } finally {
             setLoading(false);
         }
+    };
+
+    /**
+     * Escape a value for CSV (quote if contains comma, newline, or double quote).
+     */
+    const escapeCsvCell = (value) => {
+        const s = value == null ? '' : String(value);
+        if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+            return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+    };
+
+    /**
+     * Export current dashboard data as CSV and trigger download.
+     */
+    const handleExport = () => {
+        if (!dashboardData || !dashboardData.enabledDimensions) return;
+        const dims = dashboardData.enabledDimensions;
+        const rows = [];
+        const sprintLabel = selectedSprintId
+            ? (sprints.find(s => String(s.id) === selectedSprintId)?.name || selectedSprintId)
+            : 'All Sprints';
+        rows.push(['SustainScrum Dashboard Export', '']);
+        rows.push(['Project', projectKey]);
+        rows.push(['Sprint', sprintLabel]);
+        rows.push(['Exported', new Date().toISOString()]);
+        rows.push([]);
+        rows.push(['Summary', '']);
+        rows.push(['Overall KPI', dashboardData.overallKPI ?? '']);
+        dims.forEach(dim => {
+            const kpi = dashboardData.kpis?.[dim.id]?.current ?? '';
+            rows.push([dim.name, kpi]);
+        });
+        rows.push([]);
+        rows.push(['Heatmap', '']);
+        const heatmapHeader = ['Issue Key', ...dims.map(d => d.name)];
+        rows.push(heatmapHeader);
+        (dashboardData.heatmap || []).forEach((row) => {
+            rows.push([
+                row.issueKey,
+                ...dims.map(d => (row.scores && row.scores[d.id] != null ? row.scores[d.id] : ''))
+            ]);
+        });
+        const csvContent = rows
+            .map(row => row.map(escapeCsvCell).join(','))
+            .join('\r\n');
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sustainscrum-dashboard-${projectKey}-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     if (loadingProjects) {
@@ -333,7 +421,23 @@ function SustainabilityDashboard() {
                         </span>
                     )}
                 </div>
-                <button className="export-button" disabled>Export</button>
+                <button
+                        className="refresh-button"
+                        type="button"
+                        disabled={loading || !projectKey}
+                        onClick={() => loadDashboardData()}
+                        title="Reload dashboard (e.g. after changing SuMM weights)"
+                    >
+                        Refresh
+                    </button>
+                <button
+                        className="export-button"
+                        type="button"
+                        disabled={!dashboardData}
+                        onClick={handleExport}
+                    >
+                        Export
+                    </button>
             </div>
 
             {dashboardData && (

@@ -74,6 +74,9 @@ function OverviewContent({ dashboardData, kpis, enabledDimensions }) {
                         />
                     </div>
                 </div>
+                {assessmentCount >= 2 && (
+                    <p className="overview-method-note">KPI and heatmap values are computed using TOPSIS (relative closeness to ideal solution).</p>
+                )}
             </div>
 
             {/* Quick Stats */}
