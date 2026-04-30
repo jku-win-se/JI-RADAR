@@ -40,15 +40,15 @@ modules:
       handler: index.handler
 resources:
   - key: admin-page-resource
-    path: static/app/build-admin
+    path: custom-ui/build-admin
   - key: issue-panel-resource
-    path: static/app/build-issue
+    path: custom-ui/build-issue
   - key: dashboard-resource
-    path: static/app/build-dashboard
+    path: custom-ui/build-dashboard
   - key: action-resource
-    path: static/app/build-action
+    path: custom-ui/build-action
   - key: project-page-resource
-    path: static/app/build-project
+    path: custom-ui/build-project
 permissions:
   scopes:
     - read:jira-work

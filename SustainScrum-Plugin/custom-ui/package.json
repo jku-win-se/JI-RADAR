@@ -1,0 +1,39 @@
+{
+  "name": "sustainscrum-custom-ui",
+  "version": "0.1.63",
+  "private": true,
+  "homepage": ".",
+  "dependencies": {
+    "@atlaskit/css-reset": "^6.6.2",
+    "@forge/bridge": "5.10.2",
+    "react": "^16",
+    "react-dom": "^16"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "react-scripts": "^5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "npm run build:admin && npm run build:issue && npm run build:dashboard && npm run build:action && npm run build:project",
+    "build:admin": "cross-env REACT_APP_ENTRY=admin node scripts/move-build.js && cross-env REACT_APP_ENTRY=admin react-scripts build && cross-env REACT_APP_ENTRY=admin node scripts/move-build.js",
+    "build:project": "cross-env REACT_APP_ENTRY=project node scripts/move-build.js && cross-env REACT_APP_ENTRY=project react-scripts build && cross-env REACT_APP_ENTRY=project node scripts/move-build.js",
+    "build:issue": "cross-env REACT_APP_ENTRY=issue node scripts/move-build.js && cross-env REACT_APP_ENTRY=issue react-scripts build && cross-env REACT_APP_ENTRY=issue node scripts/move-build.js",
+    "build:dashboard": "cross-env REACT_APP_ENTRY=dashboard node scripts/move-build.js && cross-env REACT_APP_ENTRY=dashboard react-scripts build && cross-env REACT_APP_ENTRY=dashboard node scripts/move-build.js",
+    "build:action": "cross-env REACT_APP_ENTRY=action node scripts/move-build.js && cross-env REACT_APP_ENTRY=action react-scripts build && cross-env REACT_APP_ENTRY=action node scripts/move-build.js",
+    "move-build": "node scripts/move-build.js",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

@@ -1,40 +1,16 @@
 import Resolver from '@forge/resolver';
-import { asUser, asApp, route, storage } from '@forge/api';
+import { asUser, route, storage } from '@forge/api';
 
 const resolver = new Resolver();
 
 /**
- * Simple test function - can be removed later
- */
-resolver.define('getText', (req) => {
-    console.log(req);
-    return 'Hello, world!';
-});
-
-/**
- * Calculate progress values for dimensions based on actual issue assessments
+ * Calculate progress values for dimensions based on actual issue assessments.
+ * Uses Forge app storage (`storage` from @forge/api).
  * @param {string} projectKey - Project key
  * @param {Array} dimensions - Array of dimension objects
- * @param {Object} store - Forge storage instance
  * @returns {Promise<Array>} Dimensions with updated progress values
  */
-/**
- * Calculate progress values for dimensions based on actual issue assessments
- * @param {string} projectKey - Project key
- * @param {Array} dimensions - Array of dimension objects
- * @param {Object} store - Forge storage instance (optional, will get if not provided)
- * @returns {Promise<Array>} Dimensions with updated progress values
- */
-async function calculateDimensionProgress(projectKey, dimensions, store) {
-    // If store not provided, get it
-    if (!store) {
-        try {
-            // Storage is already available via 'storage' from @forge/api
-        } catch (e) {
-            console.warn('Could not get storage for progress calculation:', e.message);
-            return dimensions.map(dim => ({ ...dim, progress: 0 }));
-        }
-    }
+async function calculateDimensionProgress(projectKey, dimensions) {
     try {
         // Get assessment index for this project
         const indexKey = `assessments:${projectKey}`;
@@ -162,6 +138,75 @@ function computeTOPSIS(assessments, enabledDimensions) {
     return { perIssueKPI, perDimensionPerIssue, dimensionKPIs };
 }
 
+/** Default SusAF-style questions per dimension (used when none saved in SuMM). */
+const DEFAULT_DIMENSION_QUESTIONS = {
+    environment: [
+        'How does this feature impact energy consumption?',
+        'What is the resource usage of this feature?',
+        'How does this feature affect emissions?',
+        'What is the environmental footprint of this feature?'
+    ],
+    society: [
+        'How does this feature impact user accessibility?',
+        'What is the social inclusiveness of this feature?',
+        'How does this feature affect user privacy?',
+        'What is the societal benefit of this feature?'
+    ],
+    economy: [
+        'How does this feature impact operational costs?',
+        'What is the economic efficiency of this feature?',
+        'How does this feature affect long-term maintenance costs?',
+        'What is the economic value of this feature?'
+    ],
+    individual: [
+        'How does this feature impact individual well-being?',
+        'What is the personal benefit of this feature?',
+        'How does this feature affect work-life balance?',
+        'What is the individual value of this feature?'
+    ],
+    technical: [
+        'How does this feature impact technical debt?',
+        'What is the technical quality of this feature?',
+        'How does this feature affect system maintainability?',
+        'What is the technical sustainability of this feature?'
+    ]
+};
+
+/**
+ * Ensure summData.dimensionQuestions has at least one string per known dimension.
+ * @param {Object} summData
+ * @returns {Object} Cloned summData with dimensionQuestions filled
+ */
+function mergeDimensionQuestionsIntoSummData(summData) {
+    if (!summData || !Array.isArray(summData.dimensions)) return summData;
+    const out = {
+        ...summData,
+        dimensionQuestions: { ...(summData.dimensionQuestions || {}) }
+    };
+    for (const d of summData.dimensions) {
+        const q = out.dimensionQuestions[d.id];
+        if (!Array.isArray(q) || q.length === 0) {
+            const def = DEFAULT_DIMENSION_QUESTIONS[d.id];
+            out.dimensionQuestions[d.id] = def
+                ? [...def]
+                : [`Rate the sustainability impact for ${d.name || d.id}.`];
+        } else {
+            out.dimensionQuestions[d.id] = q.map(x => String(x).trim()).filter(Boolean);
+            if (out.dimensionQuestions[d.id].length === 0) {
+                const def = DEFAULT_DIMENSION_QUESTIONS[d.id];
+                out.dimensionQuestions[d.id] = def
+                    ? [...def]
+                    : [`Rate the sustainability impact for ${d.name || d.id}.`];
+            }
+        }
+    }
+    const allowed = new Set(summData.dimensions.map(d => d.id));
+    Object.keys(out.dimensionQuestions).forEach(id => {
+        if (!allowed.has(id)) delete out.dimensionQuestions[id];
+    });
+    return out;
+}
+
 /**
  * Get SuMM configuration for a specific project
  * @param {Object} req - Request object containing projectKey
@@ -177,8 +222,7 @@ resolver.define('getSuMM', async (req) => {
     try {
         // Storage key format: summ:{projectKey}
         const storageKey = `summ:${projectKey}`;
-        // Use asApp() for storage operations
-        // Use Forge storage API (storage from @forge/api)
+        // Forge app storage (`storage` from @forge/api)
         let summData;
         try {
             summData = await storage.get(storageKey);
@@ -191,14 +235,14 @@ resolver.define('getSuMM', async (req) => {
                 { id: 'individual', name: 'Individual', enabled: false, weight: 0, progress: 0 },
                 { id: 'technical', name: 'Technical', enabled: false, weight: 0, progress: 0 }
             ];
-            return {
+            return mergeDimensionQuestionsIntoSummData({
                 projectKey,
                 dimensions: defaultDimensions,
                 totalWeight: 9,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 storageWarning: 'Saved configuration could not be loaded; default values are shown. Adjust the values below and click "Save Configuration" to store them. If saving fails, check app permissions or reinstall the app.'
-            };
+            });
         }
         
         if (!summData) {
@@ -212,20 +256,20 @@ resolver.define('getSuMM', async (req) => {
             ];
             let dimensionsWithProgress = defaultDimensions;
             try {
-                dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
+                dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions);
             } catch (e) {
                 console.warn('Could not calculate progress for default SuMM:', e);
             }
-            return {
+            return mergeDimensionQuestionsIntoSummData({
                 projectKey,
                 dimensions: dimensionsWithProgress,
                 totalWeight: 9,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-            };
+            });
         }
         
-        return summData;
+        return mergeDimensionQuestionsIntoSummData(summData);
     } catch (error) {
         console.warn('Error getting SuMM:', error?.message || error);
         const defaultDimensions = [
@@ -237,18 +281,18 @@ resolver.define('getSuMM', async (req) => {
         ];
         let dimensionsWithProgress = defaultDimensions;
         try {
-            dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions, storage);
+            dimensionsWithProgress = await calculateDimensionProgress(projectKey, defaultDimensions);
         } catch (e) {
             console.warn('Could not calculate progress:', e);
         }
-        return {
+        return mergeDimensionQuestionsIntoSummData({
             projectKey,
             dimensions: dimensionsWithProgress,
             totalWeight: 9,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             storageWarning: 'Configuration could not be loaded; default values are shown. Adjust and save to store your settings. If saving fails, check app permissions.'
-        };
+        });
     }
 });
 
@@ -281,15 +325,32 @@ resolver.define('saveSuMM', async (req) => {
         const enabledDimensions = summData.dimensions.filter(d => d.enabled);
         const totalWeight = enabledDimensions.reduce((sum, dim) => sum + dim.weight, 0);
         
-        // Prepare data for storage (Governance: updatedBy, changeReason)
+        const questionMerged = mergeDimensionQuestionsIntoSummData({
+            dimensions: summData.dimensions,
+            dimensionQuestions: summData.dimensionQuestions
+        });
+        const historyEntry = {
+            at: now,
+            updatedBy,
+            changeReason: reason || null,
+            snapshot: summData.dimensions.map(d => ({ id: d.id, name: d.name, enabled: d.enabled, weight: d.weight }))
+        };
+        const prevHistory = (existing && Array.isArray(existing.changeHistory)) ? existing.changeHistory : [];
+        const changeHistory = [...prevHistory, historyEntry].slice(-50);
+
+        const { changeHistory: _discardHist, ...summWithoutHistory } = summData;
+
+        // Prepare data for storage (Governance: updatedBy, changeReason, changeHistory)
         const dataToStore = {
-            ...summData,
+            ...summWithoutHistory,
             projectKey,
             totalWeight,
+            dimensionQuestions: questionMerged.dimensionQuestions,
             createdAt: (existing && existing.createdAt) ? existing.createdAt : now,
             updatedAt: now,
             updatedBy: updatedBy,
-            changeReason: reason || null
+            changeReason: reason || null,
+            changeHistory
         };
         
         await storage.set(storageKey, dataToStore);
@@ -432,8 +493,7 @@ resolver.define('saveIssueAssessment', async (req) => {
     }
 
     try {
-        // Use asApp() for storage operations
-        // Use Forge storage API (storage from @forge/api)
+        // Forge app storage (`storage` from @forge/api)
         console.log('Storage initialized, attempting to save assessment for:', issueKey);
         
         // Get project key from issue (simplified - in real implementation, fetch from Jira API)
@@ -492,7 +552,7 @@ resolver.define('saveIssueAssessment', async (req) => {
             if (!assessmentData.susafScores) console.warn('Assessment data has no susafScores');
         }
         
-        // Prepare data for storage (incl. Nachhaltigkeitsbegründungsaufzeichnung with linkedIssueKeys)
+        // Prepare data for storage (incl. sustainability justification record with linkedIssueKeys)
         const dataToStore = {
             issueKey,
             projectKey,
@@ -630,85 +690,6 @@ resolver.define('saveIssueAssessment', async (req) => {
         return { 
             error: `Failed to save issue assessment: ${errorMessage}`,
             details: error.stack
-        };
-    }
-});
-
-/**
- * Get list of Jira projects
- * @param {Object} req - Request object
- * @returns {Array} List of projects
- */
-resolver.define('getProjects', async (req) => {
-    try {
-        console.log('Getting projects from Jira API...');
-        
-        // Use route() to create a Jira API route
-        // This is the correct way to make API requests in Forge
-        const jiraRoute = route`/rest/api/3/project/search`;
-        
-        // Make the request using asUser() with the route
-        const response = await asUser().requestJira(jiraRoute, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
-            },
-            params: {
-                maxResults: 100
-            }
-        });
-        
-        console.log('Jira API response status:', response.status);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Jira API returned error:', response.status, response.statusText, errorText);
-            // Return error info instead of empty array
-            return { 
-                error: true, 
-                message: `Failed to load projects: ${response.status} ${response.statusText}. ${errorText}`,
-                projects: []
-            };
-        }
-        
-        const data = await response.json();
-        console.log('Jira API response data:', JSON.stringify(data).substring(0, 200));
-        
-        // The /project/search endpoint returns { values: [...] }
-        const projects = data.values || data;
-        
-        if (!Array.isArray(projects)) {
-            console.error('Unexpected response format from Jira API:', data);
-            return { 
-                error: true, 
-                message: 'Unexpected response format from Jira API',
-                projects: []
-            };
-        }
-        
-        // Return simplified project list
-        const projectList = projects.map(project => ({
-            key: project.key,
-            name: project.name,
-            id: project.id
-        }));
-        
-        // Sort projects alphabetically by key (SS comes before MDP)
-        projectList.sort((a, b) => {
-            return a.key.localeCompare(b.key);
-        });
-        
-        console.log(`Successfully loaded ${projectList.length} projects:`, projectList.map(p => p.key).join(', '));
-        return projectList;
-    } catch (error) {
-        console.error('Error getting projects:', error);
-        console.error('Error stack:', error.stack);
-        // Return error info instead of empty array so frontend knows what went wrong
-        return { 
-            error: true, 
-            message: error.message || 'Failed to load projects from Jira API',
-            projects: [],
-            errorDetails: error.toString()
         };
     }
 });
@@ -1170,7 +1151,7 @@ resolver.define('searchIssues', async (req) => {
         if (!response.ok) {
             const errBody = await response.text();
             console.warn('searchIssues Jira API error:', response.status, jql, errBody);
-            let errMsg = `Suche fehlgeschlagen (${response.status}).`;
+            let errMsg = `Search failed (${response.status}).`;
             try {
                 const errJson = JSON.parse(errBody);
                 if (errJson.errorMessages && errJson.errorMessages.length) errMsg += ' ' + errJson.errorMessages.join(' ');
@@ -1192,6 +1173,230 @@ resolver.define('searchIssues', async (req) => {
 });
 
 /**
+ * Normalize Jira issue keys for stable Set lookups (e.g. SS-1 vs ss-1).
+ * @param {string|null|undefined} k
+ * @returns {string}
+ */
+function normalizeIssueKey(k) {
+    if (k == null) return '';
+    return String(k).trim().toUpperCase();
+}
+
+/**
+ * Collect sprint ids from REST issue.fields (company- + team-managed variants).
+ * @param {Object|undefined} fields
+ * @returns {Set<string>}
+ */
+function collectSprintIdsFromFields(fields) {
+    const ids = new Set();
+    if (!fields) return ids;
+    const raw = fields.sprint ?? fields.customfield_10020 ?? fields.Sprint;
+    const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    for (const s of list) {
+        if (s != null && s.id != null) ids.add(String(s.id));
+    }
+    if (ids.size > 0) return ids;
+    for (const v of Object.values(fields)) {
+        if (!Array.isArray(v) || v.length === 0) continue;
+        for (const s of v) {
+            if (!s || typeof s !== 'object' || s.id == null || typeof s.name !== 'string') continue;
+            if (typeof s.state === 'string' && /^(active|future|closed)$/i.test(s.state)) {
+                ids.add(String(s.id));
+            }
+        }
+    }
+    return ids;
+}
+
+/**
+ * When JQL `sprint = …` / Agile sprint issues return nothing (some team-managed / field setups),
+ * resolve membership by loading sprint field for known assessed issues only.
+ * @param {string} projectKey
+ * @param {string} sprintIdRaw
+ * @param {string[]} candidateKeys
+ * @returns {Promise<Set<string>>}
+ */
+async function fetchSprintMembersFromCandidateIssues(projectKey, sprintIdRaw, candidateKeys) {
+    const out = new Set();
+    const sid = String(sprintIdRaw || '').trim();
+    if (!sid || !projectKey || !candidateKeys || candidateKeys.length === 0) return out;
+
+    const pjEsc = String(projectKey).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const unique = [...new Set(candidateKeys.map(normalizeIssueKey).filter(Boolean))];
+    const chunkSize = 35;
+
+    for (let i = 0; i < unique.length; i += chunkSize) {
+        const chunk = unique.slice(i, i + chunkSize);
+        const jql = `project = "${pjEsc}" AND key in (${chunk.map(k => `"${k}"`).join(', ')})`;
+        try {
+            const searchRoute = route`/rest/api/3/search/jql`;
+            const searchRes = await asUser().requestJira(searchRoute, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jql,
+                    fields: ['key', 'sprint', 'customfield_10020'],
+                    maxResults: 100
+                })
+            });
+            if (!searchRes.ok) continue;
+            const searchData = await searchRes.json();
+            const issues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
+            for (const issue of issues) {
+                if (!issue || !issue.key || !issue.fields) continue;
+                const sprintIds = collectSprintIdsFromFields(issue.fields);
+                if (sprintIds.has(sid)) {
+                    out.add(normalizeIssueKey(issue.key));
+                }
+            }
+        } catch (e) {
+            console.warn('fetchSprintMembersFromCandidateIssues:', e && e.message ? e.message : e);
+        }
+    }
+    return out;
+}
+
+/**
+ * Load all issue keys in a sprint (paginated). Agile API first, then POST /rest/api/3/search, then search/jql.
+ * Always returns a Set (possibly empty). Never throws. Keys are normalized to uppercase.
+ * @param {string} projectKey
+ * @param {string} sprintIdRaw
+ * @param {string|null|undefined} sprintNamePayload
+ * @returns {Promise<Set<string>>}
+ */
+async function fetchIssueKeysInSprint(projectKey, sprintIdRaw, sprintNamePayload) {
+    const keys = new Set();
+    const sid = String(sprintIdRaw || '').trim();
+    if (!sid || !projectKey) return keys;
+
+    const pjEsc = String(projectKey).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const sprintNum = parseInt(sid, 10);
+    const strictlyNumeric = !Number.isNaN(sprintNum) && String(sprintNum) === sid;
+
+    const addKeysFromIssues = (issues) => {
+        (issues || []).forEach(issue => {
+            if (issue && issue.key) keys.add(normalizeIssueKey(issue.key));
+        });
+    };
+
+    try {
+        let startAt = 0;
+        const maxResults = 50;
+        for (let page = 0; page < 400; page++) {
+            const sprintRoute = route`/rest/agile/1.0/sprint/${sid}/issue`;
+            const res = await asUser().requestJira(sprintRoute, {
+                method: 'GET',
+                headers: { Accept: 'application/json' },
+                params: { startAt, maxResults, fields: 'key' }
+            });
+            if (!res.ok) {
+                const t = await res.text();
+                console.warn(`Agile sprint/${sid}/issue HTTP ${res.status}:`, (t || '').slice(0, 280));
+                break;
+            }
+            const data = await res.json();
+            const issues = data.issues || data.values || [];
+            addKeysFromIssues(issues);
+            const lastPage = data.isLast === true || issues.length === 0 || (typeof data.total === 'number' && startAt + issues.length >= data.total);
+            if (lastPage) break;
+            startAt += issues.length;
+        }
+    } catch (e) {
+        console.warn('fetchIssueKeysInSprint (Agile):', e && e.message ? e.message : e);
+    }
+
+    if (keys.size > 0) {
+        console.log(`Sprint filter: Agile API → ${keys.size} issues (sprint ${sid})`);
+        return keys;
+    }
+
+    const jqlVariants = [];
+    if (strictlyNumeric) {
+        jqlVariants.push(`project = "${pjEsc}" AND sprint = ${sprintNum}`);
+        jqlVariants.push(`project = "${pjEsc}" AND sprint in (${sprintNum})`);
+    }
+    jqlVariants.push(`project = "${pjEsc}" AND sprint = ${sid}`);
+    if (sprintNamePayload && String(sprintNamePayload).trim()) {
+        const nm = String(sprintNamePayload).trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        jqlVariants.push(`project = "${pjEsc}" AND sprint = "${nm}"`);
+    }
+
+    async function searchAllClassic(jql) {
+        const acc = new Set();
+        let startAt = 0;
+        const maxResults = 50;
+        for (let page = 0; page < 400; page++) {
+            const searchRoute = route`/rest/api/3/search`;
+            const searchRes = await asUser().requestJira(searchRoute, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jql, startAt, maxResults, fields: ['key'] })
+            });
+            if (!searchRes.ok) {
+                const et = await searchRes.text();
+                console.warn(`POST /rest/api/3/search ${searchRes.status}:`, (et || '').slice(0, 240));
+                return acc;
+            }
+            const searchData = await searchRes.json();
+            const issues = searchData.issues || [];
+            issues.forEach(issue => {
+                if (issue && issue.key) acc.add(normalizeIssueKey(issue.key));
+            });
+            const total = typeof searchData.total === 'number' ? searchData.total : null;
+            if (issues.length < maxResults || (total != null && startAt + issues.length >= total)) break;
+            startAt += maxResults;
+        }
+        return acc;
+    }
+
+    for (const jql of jqlVariants) {
+        try {
+            const acc = await searchAllClassic(jql);
+            if (acc.size > 0) {
+                console.log(`Sprint filter: /rest/api/3/search → ${acc.size} issues`);
+                return acc;
+            }
+        } catch (e) {
+            console.warn('fetchIssueKeysInSprint classic search:', e);
+        }
+    }
+
+    for (const jql of jqlVariants) {
+        try {
+            const acc = new Set();
+            let startAt = 0;
+            const maxResults = 50;
+            for (let page = 0; page < 400; page++) {
+                const searchRoute = route`/rest/api/3/search/jql`;
+                const searchRes = await asUser().requestJira(searchRoute, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jql, startAt, maxResults, fields: ['key'] })
+                });
+                if (!searchRes.ok) break;
+                const searchData = await searchRes.json();
+                const issues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
+                issues.forEach(issue => {
+                    if (issue && issue.key) acc.add(normalizeIssueKey(issue.key));
+                });
+                const total = typeof searchData.total === 'number' ? searchData.total : null;
+                if (issues.length < maxResults || (total != null && startAt + issues.length >= total)) break;
+                startAt += maxResults;
+            }
+            if (acc.size > 0) {
+                console.log(`Sprint filter: /search/jql → ${acc.size} issues`);
+                return acc;
+            }
+        } catch (e) {
+            console.warn('fetchIssueKeysInSprint search/jql:', e);
+        }
+    }
+
+    console.warn(`Sprint filter: sprint ${sid} resolved 0 issues via Agile/JQL (fallback may use assessed issues).`);
+    return keys;
+}
+
+/**
  * Get dashboard data (KPIs, trends, heatmap data)
  * @param {Object} req - Request object containing projectKey and optional filters
  * @returns {Object} Dashboard data with KPIs and heatmap
@@ -1201,14 +1406,17 @@ resolver.define('getDashboardData', async (req) => {
     const projectKey = payload.projectKey;
     const sprintIdPayload = payload.sprintId ?? payload.sprint_id ?? null;
     const sprintNamePayload = payload.sprintName ?? payload.sprint_name ?? null;
+    const trendsDaysRaw = payload.trendsDays ?? payload.trendDays ?? 0;
+    let trendsDays = parseInt(String(trendsDaysRaw), 10);
+    if (Number.isNaN(trendsDays) || trendsDays < 0) trendsDays = 0;
+    if (trendsDays > 3650) trendsDays = 3650;
 
     if (!projectKey || projectKey === 'PROJ') {
         return { error: 'Please select a valid project' };
     }
 
     try {
-        // Use asApp() for storage operations
-        // Use Forge storage API (storage from @forge/api)
+        // Forge app storage (`storage` from @forge/api)
         
         // Get SuMM configuration
         const summKey = `summ:${projectKey}`;
@@ -1246,74 +1454,27 @@ resolver.define('getDashboardData', async (req) => {
             // Index doesn't exist, no assessments yet
         }
         
-        // If sprintId is provided, filter issues by sprint
+        // If sprintId is provided, filter assessments to issues in that sprint only
         let filteredIssueKeys = null;
         if (sprintIdPayload != null && String(sprintIdPayload).trim() !== '') {
-            const sid = String(sprintIdPayload).trim();
-            const sprintNum = parseInt(sid, 10);
-            try {
-                // 1) Try Jira Agile API
-                const sprintRoute = route`/rest/agile/1.0/sprint/${sid}/issue`;
-                const sprintIssuesResponse = await asUser().requestJira(sprintRoute, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' },
-                    params: { maxResults: 1000 }
-                });
-
-                if (sprintIssuesResponse.ok) {
-                    const sprintIssuesData = await sprintIssuesResponse.json();
-                    const sprintIssues = sprintIssuesData.issues || [];
-                    filteredIssueKeys = new Set(sprintIssues.map(issue => issue.key));
-                    console.log(`Sprint filter (Agile API): ${filteredIssueKeys.size} issues in sprint ${sid}`);
-                } else {
-                    const errText = await sprintIssuesResponse.text();
-                    console.warn(`Sprint Agile API failed (${sprintIssuesResponse.status}):`, errText.slice(0, 200));
+            const sidTrim = String(sprintIdPayload).trim();
+            filteredIssueKeys = await fetchIssueKeysInSprint(
+                projectKey,
+                sidTrim,
+                sprintNamePayload
+            );
+            if (filteredIssueKeys.size === 0 && assessmentIndex.length > 0) {
+                const viaAssessed = await fetchSprintMembersFromCandidateIssues(
+                    projectKey,
+                    sidTrim,
+                    assessmentIndex.map(item => item.issueKey)
+                );
+                if (viaAssessed.size > 0) {
+                    console.log(
+                        `Sprint filter: assessed-issue field fallback → ${viaAssessed.size} issues (sprint ${sidTrim})`
+                    );
+                    filteredIssueKeys = viaAssessed;
                 }
-                if (!filteredIssueKeys || filteredIssueKeys.size === 0) {
-                    // 2) Fallback: JQL via POST /rest/api/3/search/jql (same as issue validation)
-                    const jqlById = Number.isNaN(sprintNum)
-                        ? `project = "${projectKey}" AND sprint = ${sid}`
-                        : `project = "${projectKey}" AND sprint = ${sprintNum}`;
-                    const searchRoute = route`/rest/api/3/search/jql`;
-                    const searchRes = await asUser().requestJira(searchRoute, {
-                        method: 'POST',
-                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ jql: jqlById, fields: ['key'], maxResults: 1000 })
-                    });
-                    if (searchRes.ok) {
-                        const searchData = await searchRes.json();
-                        const issues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
-                        filteredIssueKeys = new Set(issues.map(issue => issue.key));
-                        console.log(`Sprint filter (JQL by id): ${filteredIssueKeys.size} issues in sprint ${sid}`);
-                    } else {
-                        console.warn('JQL by sprint id failed:', searchRes.status);
-                    }
-                }
-                if ((!filteredIssueKeys || filteredIssueKeys.size === 0) && sprintNamePayload && String(sprintNamePayload).trim()) {
-                    // 3) Fallback: JQL by sprint name
-                    const name = String(sprintNamePayload).trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-                    const jqlByName = `project = "${projectKey}" AND sprint = "${name}"`;
-                    const searchRoute2 = route`/rest/api/3/search/jql`;
-                    const searchRes2 = await asUser().requestJira(searchRoute2, {
-                        method: 'POST',
-                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ jql: jqlByName, fields: ['key'], maxResults: 1000 })
-                    });
-                    if (searchRes2.ok) {
-                        const searchData2 = await searchRes2.json();
-                        const issues2 = searchData2.values !== undefined ? searchData2.values : (searchData2.issues || []);
-                        filteredIssueKeys = new Set(issues2.map(issue => issue.key));
-                        console.log(`Sprint filter (JQL by name): ${filteredIssueKeys.size} issues`);
-                    } else {
-                        console.warn('JQL by sprint name failed:', searchRes2.status);
-                    }
-                }
-                if (!filteredIssueKeys || filteredIssueKeys.size === 0) {
-                    console.warn('Could not get sprint issues (Agile + JQL failed). Applying strict filter: show only issues in sprint (none found).');
-                    filteredIssueKeys = new Set();
-                }
-            } catch (e) {
-                console.warn('Error getting sprint issues:', e);
             }
         }
         
@@ -1337,18 +1498,18 @@ resolver.define('getDashboardData', async (req) => {
                     const searchData = await searchResponse.json();
                     const existingIssues = searchData.values !== undefined ? searchData.values : (searchData.issues || []);
                     existingIssues.forEach(issue => {
-                        validIssueKeys.add(issue.key);
+                        if (issue && issue.key) validIssueKeys.add(normalizeIssueKey(issue.key));
                     });
                     console.log(`Validated ${validIssueKeys.size} of ${issueKeysToCheck.length} issues exist`);
                 } else {
                     console.warn('Could not validate issues, showing all assessments');
                     // If validation fails, show all (fallback behavior)
-                    issueKeysToCheck.forEach(key => validIssueKeys.add(key));
+                    issueKeysToCheck.forEach(key => validIssueKeys.add(normalizeIssueKey(key)));
                 }
             } catch (e) {
                 console.warn('Error validating issues:', e);
                 // If validation fails, show all (fallback behavior)
-                issueKeysToCheck.forEach(key => validIssueKeys.add(key));
+                issueKeysToCheck.forEach(key => validIssueKeys.add(normalizeIssueKey(key)));
             }
         }
         
@@ -1357,14 +1518,15 @@ resolver.define('getDashboardData', async (req) => {
         const deletedIssueKeys = [];
         
         for (const item of assessmentIndex) {
+            const itemKeyNorm = normalizeIssueKey(item.issueKey);
             // Skip if issue doesn't exist anymore
-            if (!validIssueKeys.has(item.issueKey)) {
+            if (!validIssueKeys.has(itemKeyNorm)) {
                 deletedIssueKeys.push(item.issueKey);
                 continue;
             }
             
             // Skip if sprint filter is active and issue is not in sprint
-            if (filteredIssueKeys && !filteredIssueKeys.has(item.issueKey)) {
+            if (filteredIssueKeys && !filteredIssueKeys.has(itemKeyNorm)) {
                 continue;
             }
             
@@ -1458,9 +1620,16 @@ resolver.define('getDashboardData', async (req) => {
             const historyData = await storage.get(historyKey);
             
             if (historyData && Array.isArray(historyData) && historyData.length > 0) {
-                // Group by dimension and calculate trends
+                const cutoffMs = trendsDays > 0 ? Date.now() - trendsDays * 86400000 : null;
+                const filteredHistory = cutoffMs
+                    ? historyData.filter(entry => {
+                        const t = new Date(entry.timestamp).getTime();
+                        return !Number.isNaN(t) && t >= cutoffMs;
+                    })
+                    : historyData;
+
                 enabledDimensions.forEach(dim => {
-                    const dimensionHistory = historyData
+                    const dimensionHistory = filteredHistory
                         .map(entry => ({
                             timestamp: entry.timestamp,
                             value: entry.dimensionKPIs?.[dim.id] || 0
@@ -1484,7 +1653,10 @@ resolver.define('getDashboardData', async (req) => {
             overallKPI: overallKPI, // Weighted overall KPI
             heatmap: heatmapData,
             trends: trendsData,
-            enabledDimensions: enabledDimensions.map(d => ({ id: d.id, name: d.name }))
+            enabledDimensions: enabledDimensions.map(d => ({ id: d.id, name: d.name })),
+            assessmentCount: allAssessments.length,
+            sprintFilterApplied: sprintIdPayload != null && String(sprintIdPayload).trim() !== '',
+            trendsDays: trendsDays
         };
     } catch (error) {
         console.error('Error getting dashboard data:', error);
@@ -1510,12 +1682,11 @@ resolver.define('getDashboardData', async (req) => {
 });
 
 /**
- * Check if an issue has at least one link to a Sustainability Story (or similar type).
- * Linked issue type name must contain "sustainability", "sus", or "nachhaltigkeitsgeschichte" (case-insensitive).
+ * Green DoD traceability: at least one Jira issue link to another issue (any type / summary).
  * @param {string} issueKey - Jira issue key
  * @returns {Promise<{ hasLink: boolean, error?: string }>}
  */
-async function issueHasLinkToSustainabilityStory(issueKey) {
+async function issueHasLinkedWorkItem(issueKey) {
     try {
         const issueRoute = route`/rest/api/3/issue/${issueKey}`;
         const res = await asUser().requestJira(issueRoute, {
@@ -1526,36 +1697,20 @@ async function issueHasLinkToSustainabilityStory(issueKey) {
         if (!res.ok) return { hasLink: false, error: 'Could not load issue links' };
         const data = await res.json();
         const rawLinks = (data.fields || {}).issuelinks || [];
-        const otherKeys = [];
-        rawLinks.forEach(link => {
+        const hasLink = rawLinks.some(link => {
             const other = link.outwardIssue || link.inwardIssue;
-            if (other && other.key) otherKeys.push(other.key);
-        });
-        if (otherKeys.length === 0) return { hasLink: false };
-        const jql = `key in (${otherKeys.join(',')})`;
-        const searchRoute = route`/rest/api/3/search`;
-        const searchRes = await asUser().requestJira(searchRoute, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ jql, fields: ['issuetype'], maxResults: 50 })
-        });
-        if (!searchRes.ok) return { hasLink: false };
-        const searchData = await searchRes.json();
-        const susTypeNames = ['sustainability', 'sus', 'nachhaltigkeitsgeschichte'];
-        const hasLink = (searchData.issues || []).some(issue => {
-            const name = (issue.fields && issue.fields.issuetype && issue.fields.issuetype.name) ? issue.fields.issuetype.name.toLowerCase() : '';
-            return susTypeNames.some(term => name.includes(term));
+            return !!(other && other.key);
         });
         return { hasLink };
     } catch (e) {
-        console.warn('issueHasLinkToSustainabilityStory failed:', e);
+        console.warn('issueHasLinkedWorkItem failed:', e);
         return { hasLink: false, error: e.message };
     }
 }
 
 /**
  * Issue Action: Complete with Sustainability Check
- * Checks: (1) assessment present, (2) link to Sustainability Story, (3) justification when scores ≤2 (trade-offs).
+ * Checks: (1) assessment present, (2) at least one linked issue, (3) justification when scores ≤2 (trade-offs).
  */
 resolver.define('completeWithSustainabilityCheck', async (req) => {
     const { issueKey } = req.payload;
@@ -1594,13 +1749,13 @@ resolver.define('completeWithSustainabilityCheck', async (req) => {
             };
         }
 
-        // Green DoD: Link to Sustainability Story (or similar type)
-        const { hasLink: hasSusLink } = await issueHasLinkToSustainabilityStory(issueKey);
-        if (!hasSusLink) {
+        // Green DoD: at least one Jira issue link (any issue type)
+        const { hasLink: hasLinkedWorkItem } = await issueHasLinkedWorkItem(issueKey);
+        if (!hasLinkedWorkItem) {
             return {
-                error: 'A link to a Sustainability Story (or similar issue type) is required before completing. Add the link in the Traceability section of the Sustainability Panel.',
+                error: 'At least one linked issue is required before completing. Add a link under Linked work items in Jira, or use Traceability in the Sustainability Panel.',
                 success: false,
-                missingSusLink: true
+                missingLinkedIssue: true
             };
         }
 
