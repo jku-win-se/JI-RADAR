@@ -25,6 +25,8 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
     const [justificationSearch, setJustificationSearch] = useState('');
     const [justificationSearchResults, setJustificationSearchResults] = useState([]);
     const [justificationSearching, setJustificationSearching] = useState(false);
+
+    // Note: React may recycle SyntheticEvents; always read target.value synchronously in handlers.
     
     // Default dimensions (fallback if SuMM not loaded)
     const defaultDimensions = [
@@ -306,7 +308,10 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                             <label>Trade-offs / compromises</label>
                             <textarea
                                 value={justification.compromises}
-                                onChange={e => setJustification(prev => ({ ...prev, compromises: e.target.value }))}
+                                onChange={(e) => {
+                                    const value = e?.target?.value ?? '';
+                                    setJustification((prev) => ({ ...prev, compromises: value }));
+                                }}
                                 placeholder="Documented trade-offs…"
                                 rows={2}
                                 className="justification-textarea"
@@ -316,7 +321,10 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                             <label>Alternatives considered</label>
                             <textarea
                                 value={justification.alternatives}
-                                onChange={e => setJustification(prev => ({ ...prev, alternatives: e.target.value }))}
+                                onChange={(e) => {
+                                    const value = e?.target?.value ?? '';
+                                    setJustification((prev) => ({ ...prev, alternatives: value }));
+                                }}
                                 placeholder="Alternatives…"
                                 rows={2}
                                 className="justification-textarea"
@@ -326,7 +334,10 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                             <label>Rationale</label>
                             <textarea
                                 value={justification.rationale}
-                                onChange={e => setJustification(prev => ({ ...prev, rationale: e.target.value }))}
+                                onChange={(e) => {
+                                    const value = e?.target?.value ?? '';
+                                    setJustification((prev) => ({ ...prev, rationale: value }));
+                                }}
                                 placeholder="Rationale…"
                                 rows={2}
                                 className="justification-textarea"
@@ -339,7 +350,10 @@ function AssessmentWizard({ issueKey, existingAssessment, onComplete, onCancel }
                                     type="text"
                                     placeholder="Search by key or summary…"
                                     value={justificationSearch}
-                                    onChange={e => setJustificationSearch(e.target.value)}
+                                    onChange={(e) => {
+                                        const value = e?.target?.value ?? '';
+                                        setJustificationSearch(value);
+                                    }}
                                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), runJustificationSearch())}
                                     className="justification-search-input"
                                 />

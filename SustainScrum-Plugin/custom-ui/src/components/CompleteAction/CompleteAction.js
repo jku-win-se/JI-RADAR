@@ -102,9 +102,9 @@ function CompleteAction() {
                 This verifies a few Green DoD rules, then moves the issue to Done if your workflow allows it.
             </p>
             <ul className="complete-checks-list">
-                <li><strong>Assessment:</strong> SusAF scores saved in the Sustainability Panel.</li>
+                <li><strong>Assessment:</strong> SusAF scores saved via <strong>⋯ → Assess sustainability</strong> (or the Sustainability panel on the issue, if visible).</li>
                 <li><strong>Traceability:</strong> At least one linked issue under Jira &quot;Linked work items&quot; (any type).</li>
-                <li><strong>Low scores (≤2):</strong> If any dimension is ≤2, add a short justification (compromises, alternatives, or rationale) in the panel.</li>
+                <li><strong>Low scores (≤2):</strong> If any dimension is ≤2, add a short justification (compromises, alternatives, or rationale) there.</li>
             </ul>
             
             {issueKey && (

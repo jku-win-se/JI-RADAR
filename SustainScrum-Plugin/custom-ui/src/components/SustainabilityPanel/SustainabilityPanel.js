@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { view } from '@forge/bridge';
 import { getIssueAssessment, getIssueInfo, saveIssueAssessment, getCurrentIssueKey } from '../../services/issueApi';
 import NotAssessedView from './NotAssessedView';
 import AssessedView from './AssessedView';
@@ -18,13 +19,34 @@ function SustainabilityPanel() {
     const [error, setError] = useState(null);
     const [showWizard, setShowWizard] = useState(false);
 
-    // Extract issue key from various sources
+    /** Forge-recommended issue key source for Custom UI (new issue navigator). */
+    const getIssueKeyFromBridgeContext = async () => {
+        try {
+            const ctx = await view.getContext();
+            if (!ctx || typeof ctx !== 'object') return null;
+            return (
+                ctx.extensionContext?.issue?.key ||
+                ctx.extension?.issue?.key ||
+                ctx.issue?.key ||
+                ctx.issueKey ||
+                null
+            );
+        } catch (e) {
+            return null;
+        }
+    };
+
+    // Extract issue key from iframe URL fragments (fallbacks when bridge context is slow)
     const extractIssueKey = () => {
-        // Try multiple methods to get issue key
-        // 1. From URL path: /browse/KAN-1
-        let key = window.location.pathname.match(/\/browse\/([A-Z]+-\d+)/)?.[1];
+        const pathname = window.location.pathname || '';
+
+        let key =
+            pathname.match(/\/browse\/([A-Za-z][A-Za-z0-9_]*-\d+)/)?.[1] ||
+            pathname.match(/\/issues\/([A-Za-z][A-Za-z0-9_]*-\d+)/)?.[1];
+
+        const selectedInPath = pathname.match(/(?:^|\/)([A-Za-z][A-Za-z0-9_]*-\d+)\/?$/);
+        if (!key && selectedInPath) key = selectedInPath[1];
         
-        // 2. From query parameter: ?selectedIssue=KAN-1
         if (!key) {
             const params = new URLSearchParams(window.location.search);
             key = params.get('selectedIssue');
@@ -34,8 +56,10 @@ function SustainabilityPanel() {
         if (!key && window.parent !== window.self) {
             try {
                 const parentUrl = window.parent.location.href;
-                key = parentUrl.match(/\/browse\/([A-Z]+-\d+)/)?.[1] || 
-                      parentUrl.match(/selectedIssue=([A-Z]+-\d+)/)?.[1];
+                key =
+                    parentUrl.match(/\/browse\/([A-Za-z][A-Za-z0-9_]*-\d+)/)?.[1] ||
+                    parentUrl.match(/\/issues\/([A-Za-z][A-Za-z0-9_]*-\d+)/)?.[1] ||
+                    parentUrl.match(/selectedIssue=([A-Za-z][A-Za-z0-9_]*-\d+)/i)?.[1];
             } catch (e) {
                 // Cross-origin, can't access parent
                 console.log('Cannot access parent window (cross-origin)');
@@ -58,19 +82,20 @@ function SustainabilityPanel() {
         let lastKey = null;
         
         const checkIssueKey = async () => {
-            // First try to get from URL
-            let key = extractIssueKey();
+            let key =
+                (await getIssueKeyFromBridgeContext()) ||
+                extractIssueKey() ||
+                null;
             
-            // If not found, try to get from Forge context
             if (!key) {
                 try {
                     const contextResult = await getCurrentIssueKey();
                     if (contextResult && contextResult.issueKey) {
                         key = contextResult.issueKey;
-                        console.log('Got issue key from Forge context:', key);
+                        console.log('Got issue key from Forge resolver:', key);
                     }
                 } catch (e) {
-                    console.log('Could not get issue key from context:', e);
+                    console.log('Could not get issue key from resolver:', e);
                 }
             }
             

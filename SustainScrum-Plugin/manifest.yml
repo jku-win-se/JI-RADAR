@@ -21,8 +21,19 @@ modules:
       resource: issue-panel-resource
       resolver:
         function: resolver
+      viewportSize: large
       icon: https://developer.atlassian.com/platform/forge/images/issue-panel-icon.svg
       title: Sustainability Panel
+  # Collapsible panel in the issue right sidebar (more discoverable than issuePanel alone).
+  jira:issueContext:
+    - key: sustainability-issue-context
+      resource: issue-panel-resource
+      resolver:
+        function: resolver
+      icon: https://developer.atlassian.com/platform/forge/images/issue-panel-icon.svg
+      title: Sustainability Assessment
+      description: Assessment and checklist for this issue.
+      label: Sustainability
   jira:globalPage:
     - key: sustainability-dashboard
       resource: dashboard-resource
@@ -30,6 +41,13 @@ modules:
         function: resolver
       title: Sustainability Dashboard
   jira:issueAction:
+    # Same UI as Sustainability Panel — opens full assessment in ⋯ modal (reliable vs inline panel chrome).
+    - key: assess-sustainability
+      title: Assess sustainability
+      resource: issue-panel-resource
+      resolver:
+        function: resolver
+      viewportSize: xlarge
     - key: complete-with-sustainability-check
       title: Complete with Sustainability Check
       resource: action-resource
