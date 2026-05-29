@@ -47,7 +47,7 @@ forge deploy
 
 _Note: The `custom-ui` folder contains the React frontend (admin pages, issue panels, dashboards). The Forge resolver runs from `src/`. Check the nested README.md files in these directories for deeper technical details._
 
-## Repository layout
+## 📂 Repository layout
 
 | Path | Description |
 |------|------------|
