@@ -1,4 +1,4 @@
-# SustainScrum
+# JI-RADAR
 
 A Jira **Forge** app for sustainability assessments on issues: configure the *Sustainability Management Model (SuMM)*, capture assessments on the issue view, and use an optional **Sustainability Dashboard** (global or on the project page) with KPIs, heatmap, trends, sprint filter, and export.
 
