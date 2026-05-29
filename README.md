@@ -56,10 +56,10 @@ _Note: The `custom-ui` folder contains the React frontend (admin pages, issue pa
 | `SustainScrum-Plugin/manifest.yml` | Defines Forge modules (admin page, project page, issue panel, global page, issue action) and OAuth scopes. |
 
 ## 📖 How to Use JI-RADAR
-1. Installation: Deploy the app via Forge or install it via the provided distribution link to your Jira Cloud site.
-2. Setup the SuMM: Navigate to the JI-RADAR Admin Area (or global app page) to configure the Sustainability Management Model for your project. Define the relevant dimensions, assign weights, and customize the assessment questions.
-3. Assess Artifacts: Open any Jira issue (e.g., User Story, Task) and locate the Sustainability Assessment panel to execute the assessment wizard.
-4. Reporting & Insights: Open the Sustainability Dashboard (available globally or as a project tab) to view aggregated metrics, filter by sprint, and export the generated KPI reports.
+1. **Installation:** Deploy the app via Forge or install it via the provided distribution link to your Jira Cloud site.
+2. **Setup the SuMM:** Navigate to the JI-RADAR Admin Area (or global app page) to configure the Sustainability Management Model for your project. Define the relevant dimensions, assign weights, and customize the assessment questions.
+3. **Assess Artifacts:** Open any Jira issue (e.g., User Story, Task) and locate the Sustainability Assessment panel to execute the assessment wizard.
+4. **Reporting & Insights:** Open the Sustainability Dashboard (available globally or as a project tab) to view aggregated metrics, filter by sprint, and export the generated KPI reports.
 
 (Missing configurations or API errors will be surfaced dynamically within the UI.)
 
