@@ -5,9 +5,9 @@ JI-RADAR is an Atlassian Jira Forge application designed to systematically captu
 By integrating the Sustainability Management Model (SuMM) into standard Jira workflows, this tool bridges the gap between abstract regulatory reporting requirements and day-to-day software development, without forcing stakeholders to abandon established project management platforms.
 
 ## ✨ Key Features
-- SuMM Configuration: Tailor sustainability dimensions (Environment, Social, Technical, Economic, Individual) and their weights on a per-project basis.
-- Contextual Issue Assessments: Capture and evaluate sustainability impacts directly within the Jira issue view using an interactive assessment wizard.
-- Sustainability Dashboard: Generate sprint-level and product-level KPI reports, visualize data through heatmaps and trend graphs, and export results for external auditing.
+- **SuMM Configuration:** Tailor sustainability dimensions (Environment, Social, Technical, Economic, Individual) and their weights on a per-project basis.
+- **Contextual Issue Assessments:** Capture and evaluate sustainability impacts directly within the Jira issue view using an interactive assessment wizard.
+- **Sustainability Dashboard:** Generate sprint-level and product-level KPI reports, visualize data through heatmaps and trend graphs, and export results for external auditing.
 
 
 ## 🛠 Prerequisites
