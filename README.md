@@ -15,9 +15,9 @@ By integrating the Sustainability Management Model (SuMM) into standard Jira wor
 ### For Users
 1. Open a browser
 2. (Create Atlassian account)
-3. Log in to the Atlassian account with administrator privileges to the Jira target instance
+3. Log in to the Atlassian account with administrator privileges to the Jira target instance.
 4. Open the [install link](https://developer.atlassian.com/console/install/1263aaa7-d809-413b-80ed-9dd279c83ae0?signature=AYABeLant8xl980Xq%2B%2Fn3nAdt6cAAAADAAdhd3Mta21zAEthcm46YXdzOmttczp1cy13ZXN0LTI6NzA5NTg3ODM1MjQzOmtleS83MDVlZDY3MC1mNTdjLTQxYjUtOWY5Yi1lM2YyZGNjMTQ2ZTcAuAECAQB4IOp8r3eKNYw8z2v%2FEq3%2FfvrZguoGsXpNSaDveR%2FF%2Fo0B7KTLu77XBfpMMQJb0cLnIAAAAH4wfAYJKoZIhvcNAQcGoG8wbQIBADBoBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDDF0UIW1R7r38KufVAIBEIA7LyJjLntcfuEuAyfRDpsb3MgCzGuqmg9t3bqej20QGL6X0sS7qX4%2BKG6uiKb1Dv9k4mO89f2IOdgAVGwAB2F3cy1rbXMAS2Fybjphd3M6a21zOmV1LXdlc3QtMTo3MDk1ODc4MzUyNDM6a2V5LzQ2MzBjZTZiLTAwYzMtNGRlMi04NzdiLTYyN2UyMDYwZTVjYwC4AQICAHijmwVTMt6Oj3F%2B0%2B0cVrojrS8yZ9ktpdfDxqPMSIkvHAGn6QGbD2eJ2v8p4Vk8Tev8AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM2oTH3SlIHX5rE%2FsvAgEQgDvRHcagl7EflC51OqGkS9t5mjKlsieunsVULowTSdStjJuAMe1qHYEWa0vI60greJAyeBdgY5nPRxmWNgAHYXdzLWttcwBLYXJuOmF3czprbXM6dXMtZWFzdC0xOjcwOTU4NzgzNTI0MzprZXkvNmMxMjBiYTAtNGNkNS00OTg1LWI4MmUtNDBhMDQ5NTJjYzU3ALgBAgIAeLKa7Dfn9BgbXaQmJGrkKztjV4vrreTkqr7wGwhqIYs5AZK2NjojnDOCSYsBtnDfVQAAAAB%2BMHwGCSqGSIb3DQEHBqBvMG0CAQAwaAYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAwLQkXO%2FNrx%2FrjnH44CARCAO%2BYefzmz5FK6%2BQSSOT93KDWaETmiOSdTtXRTDwPrlipfSt1MGY7GU5bJff7NN1RJ%2FGVgLRhgEaxaRyP%2BAgAAAAAMAAAQAAAAAAAAAAAAAAAAAFJde%2FUu4i38LAYelM3nw9T%2F%2F%2F%2F%2FAAAAAQAAAAAAAAAAAAAAAQAAADLQS4jQiNbvou4CrqOb8WVLYe2RDrQUKbppbedZNrtcgMXDKdx%2B5WSLr0GXnP1cb6vQ7O%2FYfru%2FbTg%2FyMtGXMsBRvc%3D&product=jira) and click on "Get app".
-5. Then follow the installation dialog until app is installed.
+5. Then follow the installation dialog until the app is installed.
 6. Done!
 
 ### For Developers
@@ -49,25 +49,19 @@ _Note: The `custom-ui` folder contains the React frontend (admin pages, issue pa
 
 ## Repository layout
 
-| Path | What it is |
+| Path | Description |
 |------|------------|
-| `SustainScrum-Plugin/src/` | Resolver: `invoke` handlers, Forge storage, Jira REST via `asUser()` and related APIs |
-| `SustainScrum-Plugin/custom-ui/` | Custom UI source; after `npm run build`, the `build-*` folders referenced in `manifest.yml` |
-| `SustainScrum-Plugin/manifest.yml` | Modules (admin page, project page, issue panel, global page, issue action) and OAuth scopes |
+| `SustainScrum-Plugin/src/` | Forge Resolver containing `invoke` handlers, Forge storage interactions, and Jira REST API integrations via `asUser()`. |
+| `SustainScrum-Plugin/custom-ui/` | Source code for the Custom UI. Running `npm run build` generates the `build-*` directories referenced in the manifest. |
+| `SustainScrum-Plugin/manifest.yml` | Defines Forge modules (admin page, project page, issue panel, global page, issue action) and OAuth scopes. |
 
-## Using it in Jira (outline)
+📖 How to Use JI-RADAR
+1. Installation: Deploy the app via Forge or install it via the provided distribution link to your Jira Cloud site.
+2. Setup the SuMM: Navigate to the JI-RADAR Admin Area (or global app page) to configure the Sustainability Management Model for your project. Define the relevant dimensions, assign weights, and customize the assessment questions.
+3. Assess Artifacts: Open any Jira issue (e.g., User Story, Task) and locate the Sustainability Assessment panel to execute the assessment wizard.
+4. Reporting & Insights: Open the Sustainability Dashboard (available globally or as a project tab) to view aggregated metrics, filter by sprint, and export the generated KPI reports.
 
-1. Install the app or make it available in your site after deploy.
-2. In the app **admin** area (or the global app page), define **SuMM** per project: dimensions, weights, questions.
-3. On an **issue**, open the sustainability panel to create or view an assessment.
-4. Open **Sustainability Dashboard** (where your instance exposes it—global or project tab), pick a project, and optionally a sprint and trends window.
+(Missing configurations or API errors will be surfaced dynamically within the UI.)
 
-Missing SuMM setup and other errors are surfaced in the UI.
-
-## License / third parties
-
-Package metadata and licenses are in each `package.json` where applicable. Atlassian Forge platform packages are subject to their respective terms.
-
----
-
-*Developed in the context of a bachelor’s thesis; for academic citation or disclosure rules, follow your university’s requirements.*
+## 📝 License & Third-Party Software
+Package metadata and licenses are located in the respective package.json files. Atlassian Forge platform packages and dependencies are subject to their respective Atlassian terms of service.
