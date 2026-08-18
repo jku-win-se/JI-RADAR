@@ -65,3 +65,18 @@ _Note: The `custom-ui` folder contains the React frontend (admin pages, issue pa
 
 ## 📝 License & Third-Party Software
 Package metadata and licenses are located in the respective package.json files. Atlassian Forge platform packages and dependencies are subject to their respective Atlassian terms of service.
+
+## Further Reading
+**arXiv Preprint:** https://arxiv.org/pdf/2606.29439
+## Cite this
+```
+@misc{stadler2026jiradaruncoveringsustainabilitytool,
+      title={On the JI-RADAR: Uncovering Sustainability Tool Support for Requirements Engineering}, 
+      author={Marco Stadler and Pascal Taurer and Johannes Sametinger and Wesley K. G. Assunção and Michael Riegler and Michael Vierhauser and Iris Groher},
+      year={2026},
+      eprint={2606.29439},
+      archivePrefix={arXiv},
+      primaryClass={cs.SE},
+      url={https://arxiv.org/abs/2606.29439}, 
+}
+```
